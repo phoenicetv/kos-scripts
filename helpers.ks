@@ -12,7 +12,7 @@ function warpToTime {
 	set warp to 5.
 }
 
-function executeScienceExperiments {
+function deployScienceExperiments {
 	// SCIENCE EXPERIMENTS
 	// title: "SC-9001 Science Jr."
 	local scScienceModules is SHIP:PARTSNAMED("science.module").
@@ -52,36 +52,119 @@ function executeScienceExperiments {
 	}.
 }.
 
-function executeDeployPanels {
+function deployLandingLegs {
+	// LANDING LEGS
+	
+	// title: LT-05 Micro Landing Strut
+	local llMiniLandingLeg is SHIP:PARTSNAMED("miniLandingLeg").
+	for p in llMiniLandingLeg {
+		local pm is p:GETMODULE("ModuleLandingLeg").
+		if pm:HASEVENT("lower legs") {
+			pm:DOEVENT("lower legs").
+		}.
+	}.
+}.
+
+function deployParachutes {
+	// PARACHUTES
+	
+	// title: Mk16 Parachute
+	local pcInlineSmall is SHIP:PARTSNAMED("parachuteSingle").
+	for p in pcInlineSmall {
+		local pm is p:GETMODULE("ModuleParachute").
+		if pm:HASEVENT("deploy chute") {
+			pm:DOEVENT("deploy chute").
+		}.
+	}.
+	// title: Mk-2 Radial-Mount Parachute
+	local pcRadialSmall is SHIP:PARTSNAMED("parachuteRadial").
+	for p in pcRadialSmall {
+		local pm is p:GETMODULE("ModuleParachute").
+		if pm:HASEVENT("deploy chute") {
+			pm:DOEVENT("deploy chute").
+		}.
+	}.
+}.
+
+
+function deployPanels {
 	// SOLAR PANELS
 	
+	// title: SP-W 3x2 Photovoltaic Panels
+	local spShielded3x2 is SHIP:PARTSNAMED("solarPanels1").
+	for p in spShielded3x2 {
+		local pm is p:GETMODULE("ModuleDeployableSolarPanel").
+		if pm:HASEVENT("extend panels") {
+			pm:DOEVENT("extend panels").
+		}.
+	}.
+	// title: SP-L 1x6 Photovoltaic Panels
+	local spShielded1x6 is SHIP:PARTSNAMED("solarPanels2").
+	for p in spShielded1x6 {
+		local pm is p:GETMODULE("ModuleDeployableSolarPanel").
+		if pm:HASEVENT("extend panels") {
+			pm:DOEVENT("extend panels").
+		}.
+	}.
+	// title: OX-4W 3x2 Photovoltaic Panels
+	local spExposed3x2 is SHIP:PARTSNAMED("solarPanels3").
+	for p in spExposed3x2 {
+		local pm is p:GETMODULE("ModuleDeployableSolarPanel").
+		if pm:HASEVENT("extend panels") {
+			pm:DOEVENT("extend panels").
+		}.
+	}.
 	// title: OX-4L 1x6 Photovoltaic Panels
 	local spExposed1x6 is SHIP:PARTSNAMED("solarPanels4").
 	for p in spExposed1x6 {
 		local pm is p:GETMODULE("ModuleDeployableSolarPanel").
-		if pm:ALLEVENTNAMES:LENGTH = 1 and pm:ALLEVENTNAMES[0] = "extend panels" {
+		if pm:HASEVENT("extend panels") {
 			pm:DOEVENT("extend panels").
 		}.
 	}.
-	
 	// title: Gigantor XL Solar Array
 	local spGigantor is SHIP:PARTSNAMED("largeSolarPanel").
 	for p in spGigantor {
 		local pm is p:GETMODULE("ModuleDeployableSolarPanel").
-		if pm:ALLEVENTNAMES:LENGTH = 1 and pm:ALLEVENTNAMES[0] = "extend panels" {
+		if pm:HASEVENT("extend panels") {
 			pm:DOEVENT("extend panels").
 		}.
 	}.
 	
 	// RADIATORS
+	
+	// title: Thermal Control System (small)
+	local trSmallTCS is SHIP:PARTSNAMED("foldingRadSmall").
+	for p in trSmallTCS {
+		local pm is p:GETMODULE("ModuleDeployableRadiator").
+		if pm:HASEVENT("extend radiator") {
+			pm:DOEVENT("extend radiator").
+		}.
+	}.
+	// title: Thermal Control System (medium)
+	local trMediumTCS is SHIP:PARTSNAMED("foldingRadMed").
+	for p in trMediumTCS {
+		local pm is p:GETMODULE("ModuleDeployableRadiator").
+		if pm:HASEVENT("extend radiator") {
+			pm:DOEVENT("extend radiator").
+		}.
+	}.
+	// title: Thermal Control System (large)
+	local trLargeTCS is SHIP:PARTSNAMED("foldingRadLarge").
+	for p in trLargeTCS {
+		local pm is p:GETMODULE("ModuleDeployableRadiator").
+		if pm:HASEVENT("extend radiator") {
+			pm:DOEVENT("extend radiator").
+		}.
+	}.
 }.
 
-function executeActivateAntenna {
+function deployAntenna {
 	// title: "Communotron 16"
 	local oa2MM is SHIP:PARTSNAMED("longAntenna").
 	for p in oa2MM {
 		local pm is p:GETMODULE("ModuleRTAntenna").
-		if pm:ALLEVENTNAMES:LENGTH = 1 and pm:ALLEVENTNAMES[0] = "activate" {
+		if pm:HASACTION("activate") {
 			pm:DOEVENT("activate").
 		}.
 	}.
@@ -89,7 +172,7 @@ function executeActivateAntenna {
 	local oa5MM is SHIP:PARTSNAMED("RTLongAntenna2").
 	for p in oa5MM {
 		local pm is p:GETMODULE("ModuleRTAntenna").
-		if pm:ALLEVENTNAMES:LENGTH = 1 and pm:ALLEVENTNAMES[0] = "activate" {
+		if pm:HASACTION("activate") {
 			pm:DOEVENT("activate").
 		}.
 	}.
@@ -97,7 +180,16 @@ function executeActivateAntenna {
 	local da50MM is SHIP:PARTSNAMED("mediumDishAntenna").
 	for p in da50MM {
 		local pm is p:GETMODULE("ModuleRTAntenna").
-		if pm:ALLEVENTNAMES:LENGTH = 2 and pm:ALLEVENTNAMES[1] = "activate" {
+		if pm:HASACTION("activate") {
+			pm:DOEVENT("activate").
+			pm:SETFIELD("target", "mission-control").
+		}.
+	}.
+	// title: "Reflectron KR-7"
+	local da90MM is SHIP:PARTSNAMED("RTShortDish2").
+	for p in da90MM {
+		local pm is p:GETMODULE("ModuleRTAntenna").
+		if pm:HASACTION("activate") {
 			pm:DOEVENT("activate").
 			pm:SETFIELD("target", "mission-control").
 		}.
@@ -106,7 +198,7 @@ function executeActivateAntenna {
 	local da60GM is SHIP:PARTSNAMED("RTLongDish2").
 	for p in da60GM {
 		local pm is p:GETMODULE("ModuleRTAntenna").
-		if pm:ALLEVENTNAMES:LENGTH = 2 and pm:ALLEVENTNAMES[1] = "activate" {
+		if pm:HASACTION("activate") {
 			pm:DOEVENT("activate").
 			pm:SETFIELD("target", "mission-control").
 		}.
@@ -118,6 +210,8 @@ function readShipParts {
 	local masterPartList is SHIP:PARTS.
 
 	// SCIENCE EXPERIMENTS
+	// LANDING LEGS
+	// PARACHUTES
 	// SOLAR PANELS
 	// RADIATORS
 	// COMM Antenna
@@ -255,6 +349,8 @@ FUNCTION calcFuturePhaseAngle {
 	RETURN aPhase.
 }.
 
-executeDeployPanels().
-executeActivateAntenna().
-executeScienceExperiments().
+deployScienceExperiments().
+deployLandingLegs().
+deployPanels().
+deployAntenna().
+deployParachutes().
