@@ -1,15 +1,14 @@
 // copyright PHOeNICE. Not to be redistributed for any public release.
 // personal use and education only. Not meant for distribution.
 
-SET shipSizeScalar TO 20.0.
+SET shipSizeScalar TO 30.0.
 SET MinTurnSpeed TO 100.
 SET MinTurnAltitude TO   1000.
 SET HardTurnAltitude TO 30000.
-SET TargetAltitude  TO 2121000.
+SET TargetAltitude  TO 100000.
 SET transferNode TO NODE(TIME:SECONDS, 0, 0, 5).
 
 RUN ONCE helpers.
-RUN ONCE arrows.
 WAIT UNTIL SHIP:UNPACKED.
 //SET TERMINAL:HEIGHT TO 72.
 //SET TERMINAL:WIDTH TO 50.
@@ -58,7 +57,7 @@ FUNCTION executeGravityTurn {
 	PRINT "Now compensating for gravity turn.".
 	PRINT "==================================".
 	//LOCK tOrientation TO HEADING(90,85).
-	LOCK tOrientation TO HEADING(90, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(2/5))). // limiterY
+	LOCK tOrientation TO HEADING(90, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(4/5))). // limiterY
 	LOCK STEERING TO smoothRotate(tOrientation).
 	//LOCK tOrientation TO R(SHIP:SRFPROGRADE:PITCH+2.5, 0, 0).
 	PRINT "Orienting for 5 degree initial turn.".
@@ -585,10 +584,6 @@ FUNCTION smartRocket {
 		executeGravityTurn().
 		executeCoastToApo().
 	}.
-//	IF SHIP:ALTITUDE < SHIP:BODY:ATM:HEIGHT
-//		 AND SHIP:APOAPSIS > TargetAltitude
-//	{
-//	}.
 	IF SHIP:ALTITUDE > SHIP:BODY:ATM:HEIGHT
 	{
 		executeCircularize().
