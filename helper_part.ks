@@ -1,5 +1,5 @@
 // copyright PHOeNICE. Not to be redistributed for any release.
-// personal use and education only. Not meant for distribution.
+// personal use and education only.
 
 function deployScienceExperiments {
 	// SCIENCE EXPERIMENTS
@@ -289,51 +289,51 @@ function readShipParts {
 }.
 
 
-FUNCTION smoothRotate {
-	PARAMETER dir.
-	LOCAL spd IS max(SHIP:ANGULARMOMENTUM:MAG/10,4).
-	LOCAL curF IS SHIP:FACING:FOREVECTOR.
-	LOCAL curR IS SHIP:FACING:TOPVECTOR.
-	LOCAL dirF IS dir:FOREVECTOR.
-	LOCAL dirR IS dir:TOPVECTOR.
-	LOCAL axis IS VCRS(curF,dirF).
-	LOCAL axisR IS VCRS(curR,dirR).
-	LOCAL rotAng IS VANG(dirF,curF)/spd.
-	LOCAL rotRAng IS VANG(dirR,curR)/spd.
-	LOCAL rot IS ANGLEAXIS(min(2,rotAng),axis).
-	LOCAL rotR IS R(0,0,0).
-	IF VANG(dirF,curF) < 90 {
-		SET rotR TO ANGLEAXIS(min(0.5,rotRAng),axisR).
+function smoothRotate {
+	parameter dir.
+	local spd is max(SHIP:ANGULARMOMENTUM:MAG/10,4).
+	local curF is SHIP:FACING:FOREVECTOR.
+	local curR is SHIP:FACING:TOPVECTOR.
+	local dirF is dir:FOREVECTOR.
+	local dirR is dir:TOPVECTOR.
+	local axis is VCRS(curF,dirF).
+	local axisR is VCRS(curR,dirR).
+	local rotAng is VANG(dirF,curF)/spd.
+	local rotRAng is VANG(dirR,curR)/spd.
+	local rot is ANGLEAXIS(min(2,rotAng),axis).
+	local rotR is R(0,0,0).
+	if VANG(dirF,curF) < 90 {
+		set rotR to ANGLEAXIS(min(0.5,rotRAng),axisR).
 	}
-	RETURN LOOKDIRUP(rot * curF, rotR * curR).
+	return LOOKDIRUP(rot * curF, rotR * curR).
 }
 
-FUNCTION readAtmosphericData {
-	PARAMETER tBody.
-	LOCAL tAtm IS BODY(tBody):ATM.
-	PRINT "-------------------------".
-	PRINT "Atmospheric information: " + tAtm:BODY.
-	PRINT "-------------------------".
-	PRINT "Exists? " + tAtm:EXISTS.
-	PRINT "Oxygen? " + tAtm:OXYGEN.
-	PRINT "Sea level pressure: " + tAtm:SEALEVELPRESSURE.
-	PRINT "Height: " + tAtm:HEIGHT.
+function readAtmosphericData {
+	parameter tBody.
+	local tAtm is BODY(tBody):ATM.
+	print "-------------------------".
+	print "Atmospheric information: " + tAtm:BODY.
+	print "-------------------------".
+	print "Exists? " + tAtm:EXISTS.
+	print "Oxygen? " + tAtm:OXYGEN.
+	print "Sea level pressure: " + tAtm:SEALEVELPRESSURE.
+	print "Height: " + tAtm:HEIGHT.
 }.
 
 function etaToTimeWithMinus {
 	parameter etaTime.
-	IF etaTime > SHIP:ORBIT:PERIOD / 2 {
+	if etaTime > SHIP:ORBIT:PERIOD / 2 {
 		// give a negative ETA here if after it
 		set etaTime to etaTime - SHIP:ORBIT:PERIOD.
 	}.
 	return etaTime.
 }
 
-FUNCTION etaToApoWithMinus {
+function etaToApoWithMinus {
 	return etaToTimeWithMinus(ETA:APOAPSIS).
 }
 
-FUNCTION etaToPeriWithMinus {
+function etaToPeriWithMinus {
 	return etaToTimeWithMinus(ETA:PERIAPSIS).
 }
 
@@ -344,80 +344,80 @@ function calcSpeedAtRadius {
 	return mu * (2/r1 - 1/a).
 }
 
-FUNCTION calcCircularizeDV {
-	PARAMETER altit.
+function calcCircularizeDV {
+	parameter altit.
 	// gravitational constant times focal body mass
-	LOCAL mu IS SHIP:ORBIT:BODY:MU.
+	local mu is SHIP:ORBIT:BODY:MU.
 	// average of PERI+APO+diameter of focal body
-	LOCAL a IS SHIP:ORBIT:SEMIMAJORAXIS.
+	local a is SHIP:ORBIT:SEMIMAJORAXIS.
 	// APO+radius of focal body, larger half of the semimajor axis
-	LOCAL r1 IS SHIP:ORBIT:BODY:RADIUS + altit.
+	local r1 is SHIP:ORBIT:BODY:RADIUS + altit.
 	// oval orbit velocity at any given r is ( sqrt(mu*(2/r1 - 1/a)) )
-	LOCAL apoV IS (mu*(2/r1 - 1/a))^(0.5).
+	local apoV is (mu*(2/r1 - 1/a))^(0.5).
 	// the formula for circular orbit vel simplifies to:
 	// r1 here instead of 'a' because 'a' is the old semi-major axis
-	LOCAL circularV IS (mu / r1)^(0.5).
-	PRINT "apoV is: " + apoV.
-	PRINT "circularV is: " + circularV.
-	RETURN circularV - apoV.
+	local circularV is (mu / r1)^(0.5).
+	print "apoV is: " + apoV.
+	print "circularV is: " + circularV.
+	return circularV - apoV.
 }
 
-FUNCTION calcHoemannDVtoOrbit {
-	PARAMETER tOrbit.
+function calcHoemannDVtoOrbit {
+	parameter tOrbit.
 	// mu = gravitational constant times focal body mass
-	LOCAL mu IS SHIP:ORBIT:BODY:MU.
+	local mu is SHIP:ORBIT:BODY:MU.
 	// alt+radius of focal body, smaller half of the semimajor axis when leaving
-	LOCAL r1 IS SHIP:ORBIT:BODY:RADIUS + SHIP:ALTITUDE.
-	PRINT "Local r1 is: " + r1.
+	local r1 is SHIP:ORBIT:BODY:RADIUS + SHIP:ALTITUDE.
+	print "Local r1 is: " + r1.
 	// TODO: this is technically wrong for highly eccentric orbits!!
 	//       NOT a proper rendezvous!!!
 	// r2 = distance of target body, let's assume the average for now
-	LOCAL r2 IS SHIP:ORBIT:BODY:RADIUS + (tOrbit:PERIAPSIS + tOrbit:APOAPSIS) / 2.
-	PRINT "Target r2 is: " + r2.
-	LOCAL a IS (r1 + r2) / 2.
+	local r2 is SHIP:ORBIT:BODY:RADIUS + (tOrbit:PERIAPSIS + tOrbit:APOAPSIS) / 2.
+	print "Target r2 is: " + r2.
+	local a is (r1 + r2) / 2.
 	// oval orbit velocity at any given r is ( sqrt(mu*(2/r1 - 1/a)) )
-	LOCAL periV IS (mu*(2/r1 - 1/a))^(0.5).
-	PRINT "Calculated periV to be: " + periV.
+	local periV is (mu*(2/r1 - 1/a))^(0.5).
+	print "Calculated periV to be: " + periV.
 	return periV - SHIP:VELOCITY:ORBIT:MAG.
 }
 
-FUNCTION calcCircularizeSpeed {
-	PARAMETER altit.
-	LOCAL mu IS SHIP:ORBIT:BODY:MU.
+function calcCircularizeSpeed {
+	parameter altit.
+	local mu is SHIP:ORBIT:BODY:MU.
 	// APO+radius of focal body, larger half of the semimajor axis
-	LOCAL r1 IS SHIP:ORBIT:BODY:RADIUS + altit.
+	local r1 is SHIP:ORBIT:BODY:RADIUS + altit.
 	// the formula for circular orbit vel simplifies to:
-	RETURN (mu / r1)^(0.5).
+	return (mu / r1)^(0.5).
 }.
 
-FUNCTION calcOrbitPhaseAngle {
-	PARAMETER tOrbit.
-	LOCAL angleBody IS tOrbit:LONGITUDEOFASCENDINGNODE + tOrbit:ARGUMENTOFPERIAPSIS + tOrbit:TRUEANOMALY.
-	LOCAL angleShip IS SHIP:ORBIT:LONGITUDEOFASCENDINGNODE + SHIP:ORBIT:ARGUMENTOFPERIAPSIS + SHIP:ORBIT:TRUEANOMALY.
-	LOCAL phaseAngle is MOD(angleBody - angleShip, 360).
-	IF phaseAngle < 0 { SET phaseAngle TO phaseAngle + 360. }
+function calcOrbitPhaseAngle {
+	parameter tOrbit.
+	local angleBody is tOrbit:LONGITUDEOFASCENDINGNODE + tOrbit:ARGUMENTOFPERIAPSIS + tOrbit:TRUEANOMALY.
+	local angleShip is SHIP:ORBIT:LONGITUDEOFASCENDINGNODE + SHIP:ORBIT:ARGUMENTOFPERIAPSIS + SHIP:ORBIT:TRUEANOMALY.
+	local phaseAngle is MOD(angleBody - angleShip, 360).
+	if phaseAngle < 0 { set phaseAngle to phaseAngle + 360. }
 	return phaseAngle.
 }.
 
-FUNCTION calcBodyPhaseAngle {
-	PARAMETER tBody.
+function calcBodyPhaseAngle {
+	parameter tBody.
 	return calcOrbitPhaseAngle(tBody:ORBIT).
 }.
 
-FUNCTION calcFuturePhaseAngle {
-	PARAMETER tBody.
-	PARAMETER tFuture.
-	LOCAL pShip IS SHIP:POSITION - SHIP:BODY:POSITION.
-	LOCAL aShip IS (180 + ARCTAN2(pShip:Z, pShip:X)).
-	LOCAL pBody IS POSITIONAT(tBody, tFuture) - SHIP:BODY:POSITION.
-	LOCAL aBody IS (180 + ARCTAN2(pBody:Z, pBody:X)).
-	//PRINT "atan2 new body angle: " + aBody.
-	LOCAL aPhase IS MOD(aBody - aShip, 360).
-	IF aPhase < 0 { 
-		SET aPhase TO aPhase + 360. 
+function calcFuturePhaseAngle {
+	parameter tBody.
+	parameter tFuture.
+	local pShip is SHIP:POSITION - SHIP:BODY:POSITION.
+	local aShip is (180 + ARCTAN2(pShip:Z, pShip:X)).
+	local pBody is POSITIONAT(tBody, tFuture) - SHIP:BODY:POSITION.
+	local aBody is (180 + ARCTAN2(pBody:Z, pBody:X)).
+	//print "atan2 new body angle: " + aBody.
+	local aPhase is MOD(aBody - aShip, 360).
+	if aPhase < 0 { 
+		set aPhase to aPhase + 360. 
 	}.
-	//PRINT "The new phase angle will be: " + aPhase.
-	RETURN aPhase.
+	//print "The new phase angle will be: " + aPhase.
+	return aPhase.
 }.
 
 deployScienceExperiments().

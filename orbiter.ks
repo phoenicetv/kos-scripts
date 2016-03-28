@@ -1,602 +1,561 @@
 // copyright PHOeNICE. Not to be redistributed for any public release.
-// personal use and education only. Not meant for distribution.
+// personal use and education only.
 
-SET shipSizeScalar TO 30.0.
-SET MinTurnSpeed TO 100.
-SET MinTurnAltitude TO   1000.
-SET HardTurnAltitude TO 30000.
-SET TargetAltitude  TO 100000.
-SET transferNode TO NODE(TIME:SECONDS, 0, 0, 5).
+wait until SHIP:UNPACKED.
+set shipSizeScalar to 30.0.
+set MinTurnSpeed to 100.
+set MinTurnAltitude to   1000.
+set HardTurnAltitude to 30000.
+set TargetAltitude  to 100000.
+set transferNode to NODE(TIME:SECONDS, 0, 0, 5).
 
-RUN ONCE helpers.
-WAIT UNTIL SHIP:UNPACKED.
-//SET TERMINAL:HEIGHT TO 72.
-//SET TERMINAL:WIDTH TO 50.
+run once helpers_import.
+//set TERMINAL:HEIGHT to 72.
+//set TERMINAL:WIDTH to 50.
 
-FUNCTION executeLaunchMyVessel {
-	PRINT "=================================".
-	PRINT "Launching straight up, initially.".
-	PRINT "=================================".
-	IF SHIP:MAXTHRUST = 0.0 { STAGE. }.
-	LOCK NeededUpwardThrust TO CONSTANT:G * BODY:MASS * SHIP:MASS / ((BODY:RADIUS + SHIP:ALTITUDE)^2).
-	LOCK TWR TO MAX(0.01, SHIP:MAXTHRUST) / NeededUpwardThrust.
-	PRINT "TWR estimated TO be: " + TWR.
-	LOCK THROTTLE TO MIN(1.0, MAX(0.01, 1.7/TWR)).
-	PRINT "Initial throttle to: " + (MIN(1.0, MAX(0.01, 1.7/TWR))).
-	LOCK tOrientation TO HEADING(90, 90).
-	LOCK STEERING TO smoothRotate(tOrientation).
-
-	UNTIL SHIP:MAXTHRUST = 0.0 OR SHIP:ALTITUDE > MinTurnAltitude {
-		updateAngleArrows().
-		WAIT 0.1.
-		IF SHIP:MAXTHRUST = 0 {
-			PRINT "Current stage is out of fuel!".
-			PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL).
-			LOCK THROTTLE TO 0.0.
-			WAIT 0.5.
-			STAGE.
-			IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { BREAK. }
-			WAIT 1.5.
-			LOCK THROTTLE TO MIN(1.0, MAX(0.01, 1.7/TWR)).
-			PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-		}.
-	}.
-	UNLOCK STEERING.
-	UNLOCK THROTTLE.
-	UNLOCK NeededUpwardThrust.
-	UNLOCK TWR.
+function inflightStage {
+	parameter tThrottle.
+	print "Current stage is out of fuel!".
+	print "Total fuel remaining: " + (SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL).
+	lock THROTTLE to 0.0.
+	wait 0.5.
+	STAGE.
+	local nextFuel = SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL.
+	if nextFuel = 0 { return false. }.
+	wait 1.5.
+	lock THROTTLE to tThrottle.
+	print "Next stage fuel: " + nextFuel.
+	return true.
 }.
 
-FUNCTION executeGravityTurn {
-	//LOCK fancyTheta TO 90 - 90*(SHIP:ALTITUDE/60000)^(2/5).
-	SET limiterM TO (45-85)/(HardTurnAltitude-MinTurnAltitude).
-	SET limiterB TO 85 - MinTurnAltitude *limiterM.
-	LOCK limiterY TO MAX(45, SHIP:ALTITUDE * limiterM + limiterB).
-	SET targetArrowOLD TO VECDRAW(V(0,0,0), shipSizeScalar * HEADING(90, limiterY):FOREVECTOR, RGB(1,0,0), "", 1.0, TRUE, 0.1).
-	PRINT "==================================".
-	PRINT "Now compensating for gravity turn.".
-	PRINT "==================================".
-	//LOCK tOrientation TO HEADING(90,85).
-	LOCK tOrientation TO HEADING(90, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(4/5))). // limiterY
-	LOCK STEERING TO smoothRotate(tOrientation).
-	//LOCK tOrientation TO R(SHIP:SRFPROGRADE:PITCH+2.5, 0, 0).
-	PRINT "Orienting for 5 degree initial turn.".
+function executeLaunchMyVessel {
+	print "=================================".
+	print "Launching straight up, initially.".
+	print "=================================".
+	if SHIP:MAXTHRUST = 0.0 { STAGE. }.
+	// G M1 M2 / (distance)^2
+	lock neededUpwardThrust to CONSTANT:G * BODY:MASS * SHIP:MASS / (BODY:RADIUS + SHIP:ALTITUDE)^2.
+	lock twr to MAX(0.01, SHIP:MAXTHRUST) / neededUpwardThrust.
+	print "TWR estimated to be: " + twr.
+	lock tThrottle to MIN(1.0, MAX(0.01, 1.8/twr)).
+	lock THROTTLE to tThrottle.
+	print "Initial throttle to: " + tThrottle.
+	lock tOrientation to HEADING(90, 90).
+	lock STEERING to smoothRotate(tOrientation).
 
-	LOCK THROTTLE TO 1.0.
-	UNTIL SHIP:ORBIT:APOAPSIS > TargetAltitude OR SHIP:MAXTHRUST = 0 {
-		SET targetArrowOLD:VEC TO shipSizeScalar * HEADING(90, limiterY):FOREVECTOR.
+	until SHIP:MAXTHRUST = 0.0 or SHIP:ALTITUDE > MinTurnAltitude {
 		updateAngleArrows().
-		WAIT 0.1.
-		IF SHIP:MAXTHRUST = 0 {
-			PRINT "Current stage is out of fuel!".
-			PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL+SHIP:SOLIDFUEL).
-			LOCK THROTTLE TO 0.0.
-			WAIT 0.5.
-			STAGE.
-			IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { BREAK. }
-			WAIT 1.5.
-			LOCK THROTTLE TO 1.0.
-			PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-			LOCAL NeededUpwardThrust IS CONSTANT:G * BODY:MASS * SHIP:MASS / ((BODY:RADIUS + SHIP:ALTITUDE)^2).
-			LOCAL TWR IS MAX(0.01, SHIP:MAXTHRUST) / NeededUpwardThrust.
-			PRINT "Estimated TWR is: " + TWR.
-		}.
+		wait 0.05.
+		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+	}.
+	unlock STEERING.
+	unlock THROTTLE.
+	unlock twr.
+	unlock neededUpwardThrust.
+}.
+
+function executeGravityTurn {
+	//lock fancyTheta to 90 - 90*(SHIP:ALTITUDE/60000)^(2/5).
+	set limiterM to (45-85)/(HardTurnAltitude-MinTurnAltitude).
+	set limiterB to 85 - MinTurnAltitude *limiterM.
+	lock limiterY to MAX(45, SHIP:ALTITUDE * limiterM + limiterB).
+	// this was my orientation vector until I blatantly stole Dunbaratu's below
+	set targetArrowOLD to VECDRAW(V(0,0,0), shipSizeScalar * HEADING(90, limiterY):FOREVECTOR, RGB(1,0,0), "", 1.0, TRUE, 0.1).
+	print "==================================".
+	print "Now compensating for gravity turn.".
+	print "==================================".
+	
+	// ***************************************************************************************
+	// written by Reddit user /u/Dunbaratu -- https://www.twitch.tv/dunbaratu
+	lock tOrientation to HEADING(90, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(2/5))).
+	// note I find this too aggressive for heavy craft, change the 2/5 to 4/5 etc in that case
+	// ***************************************************************************************
+	lock STEERING to smoothRotate(tOrientation).
+	//lock tOrientation to R(SHIP:SRFPROGRADE:PITCH+2.5, 0, 0).
+	print "Orienting for 5 degree initial turn.".
+
+	lock THROTTLE to 1.0.
+	until SHIP:ORBIT:APOAPSIS > TargetAltitude or SHIP:MAXTHRUST = 0 {
+		set targetArrowOLD:VEC to shipSizeScalar * HEADING(90, limiterY):FOREVECTOR.
+		updateAngleArrows().
+		wait 0.1.
+		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 	}.
 	UNSET targetArrowOLD.
-	UNLOCK limiterY.
-	LOCK THROTTLE TO 0.0.
-	UNLOCK STEERING.
+	unlock limiterY.
+	lock THROTTLE to 0.0.
+	unlock STEERING.
 }.
 	
-FUNCTION executeCoastToApo {
-	IF SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT { RETURN. }.
+function executeCoastToApo {
+	if SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT { RETURN. }.
 	
-	PRINT "=====================".
-	PRINT "Coasting TO APOAPSIS.".
-	PRINT "=====================".
-	LOCK tOrientation TO SHIP:PROGRADE.
-	LOCK DifferenceMag TO VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
-	LOCK THROTTLE TO 0.0.
-	LOCK STEERING TO smoothRotate(tOrientation).
-	UNTIL DifferenceMag < 0.5 {
+	print "=====================".
+	print "Coasting to APOAPSIS.".
+	print "=====================".
+	lock THROTTLE to MIN(0.1, MAX(0, (TargetAltitude - SHIP:APOAPSIS)/10000)).
+	lock tOrientation to SHIP:PROGRADE.
+	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
+	lock STEERING to smoothRotate(tOrientation).
+	until DifferenceMag < 0.5 {
 		updateAngleArrows().
-		WAIT 0.1.
+		wait 0.1.
 	}.
-	SET WARPMODE TO "PHYSICS".
-	SET WARP TO 3.
-	UNTIL SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT {
+	set WARPMODE to "PHYSICS".
+	set WARP to 3.
+	until SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT {
 		updateAngleArrows().
-		WAIT 0.1.
+		wait 0.1.
 	}.
-	PRINT "Exit atmosphere at ALTITUDE: " + SHIP:ALTITUDE.
-	PRINT "Apoapsis is: " + SHIP:APOAPSIS.
-	SET WARP TO 0.
-	UNLOCK STEERING.
-	UNLOCK THROTTLE.
-	UNLOCK DifferenceMag.
+	print "Exit atmosphere at ALTITUDE: " + SHIP:ALTITUDE.
+	print "Apoapsis is: " + SHIP:APOAPSIS.
+	set WARP to 0.
+	unlock STEERING.
+	lock THROTTLE to 0.0.
+	unlock THROTTLE.
+	unlock DifferenceMag.
 }.
 
-FUNCTION executeCircularize {
+function executeCircularize {
 	// F = m*v^2 / r
 	// F = ma, Kerbin is 9.81m/s^2
 	// F = G*m1*m2/(r1+r2)^2
 	// 100km orbit should be 7.2073 m/s^2
 	// 2246.1 m/s
-	// LOCK OrbitalSpeed TO SHIP:MASS * (SHIP:GROUNDSPEED * SHIP:GROUNDSPEED) / (BODY:RADIUS + SHIP:ALTITUDE).
-	//SET myNode TO NODE( TIME:SECONDS + ETA:APOAPSIS, 0, 0, 2246.1 - SHIP:GROUNDSPEED ).
+	// lock OrbitalSpeed to SHIP:MASS * (SHIP:GROUNDSPEED * SHIP:GROUNDSPEED) / (BODY:RADIUS + SHIP:ALTITUDE).
+	//set myNode to NODE( TIME:SECONDS + ETA:APOAPSIS, 0, 0, 2246.1 - SHIP:GROUNDSPEED ).
 	//ADD myNode.
-	//LOCK timeToBurn TO myNode:PROGRADE / MAX(1.0, (SHIP:MAXTHRUST / SHIP:MASS)).
-	//PRINT "Calculated time TO burn is: " + timeToBurn.
+	//lock timeToBurn to myNode:PROGRADE / MAX(1.0, (SHIP:MAXTHRUST / SHIP:MASS)).
+	//print "Calculated time to burn is: " + timeToBurn.
 
-	//LOCK Fg TO CONSTANT:G * BODY:MASS * SHIP:MASS / (SHIP:ALTITUDE+BODY:RADIUS)^2.
-	//PRINT "Fg is: " + Fg.
-	//LOCK sinTheta TO MIN(1.0, MAX(0.0, Fg / (MAX(1, SHIP:MAXTHRUST)))).
-	//PRINT "sinTheta is: " + sinTheta.
-	//LOCK VertAdjust TO MAX(-Fg, MIN(SHIP:VERTICALSPEED, Fg)) / Fg.
-	//PRINT "vertAdjust is: " + VertAdjust.
-	//LOCK theta TO (ARCSIN(sinTheta) * (0.5 - VertAdjust)).
-	//PRINT "theta is: " + theta.
+	//lock Fg to CONSTANT:G * BODY:MASS * SHIP:MASS / (SHIP:ALTITUDE+BODY:RADIUS)^2.
+	//print "Fg is: " + Fg.
+	//lock sinTheta to MIN(1.0, MAX(0.0, Fg / (MAX(1, SHIP:MAXTHRUST)))).
+	//print "sinTheta is: " + sinTheta.
+	//lock VertAdjust to MAX(-Fg, MIN(SHIP:VERTICALSPEED, Fg)) / Fg.
+	//print "vertAdjust is: " + VertAdjust.
+	//lock theta to (ARCSIN(sinTheta) * (0.5 - VertAdjust)).
+	//print "theta is: " + theta.
 
-	PRINT "=====================".
-	PRINT "Increasing PERIAPSIS.".
-	PRINT "=====================".
-	LOCAL circularBurn IS calcCircularizeDV(SHIP:ORBIT:APOAPSIS).
+	print "=====================".
+	print "Increasing PERIAPSIS.".
+	print "=====================".
+	local circularBurn is calcCircularizeDV(SHIP:ORBIT:APOAPSIS).
 	// needed deltaV divided by our acceleration gives us a time
-	PRINT "Need TO burn m/s: " + circularBurn.
-	LOCAL burnTime IS circularBurn / (SHIP:MAXTHRUST / SHIP:MASS).
-	PRINT "Estimated burn time is: " + burnTime.
-	LOCAL circularizeNode TO NODE( TIME:SECONDS + etaToApoWithMinus(), 0, 0, circularBurn ).
+	print "Need to burn m/s: " + circularBurn.
+	local burnTime is circularBurn / (SHIP:MAXTHRUST / SHIP:MASS).
+	print "Estimated burn time is: " + burnTime.
+	local circularizeNode to NODE( TIME:SECONDS + etaToApoWithMinus(), 0, 0, circularBurn ).
 	ADD circularizeNode.
-	LOCK tOrientation TO circularizeNode:BURNVECTOR:DIRECTION.
-	LOCK STEERING TO smoothRotate(tOrientation).
-	LOCK DifferenceMag TO VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
-	UNTIL DifferenceMag < 0.5 {
+	lock tOrientation to circularizeNode:BURNVECTOR:DIRECTION.
+	lock STEERING to smoothRotate(tOrientation).
+	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
+	until DifferenceMag < 0.5 {
 		updateAngleArrows().
-		WAIT 0.1.
+		wait 0.1.
 	}.
-	UNLOCK DifferenceMag.
+	unlock DifferenceMag.
 	
-	PRINT "Using WarpTo()" + TIME:SECONDS.
+	print "Using WarpTo()" + TIME:SECONDS.
 	// TODO: make a warpto that doesn't overshoot
-	WARPTO(TIME:SECONDS + etaToApoWithMinus() + burnTime/2 + 15).
-	PRINT "Using wait until loop.." + TIME:SECONDS.
-	UNTIL etaToApoWithMinus() < burnTime/2 + 1 {
+	warpToRelTime(etaToApoWithMinus() + burnTime/2 + 5).
+	print "Using wait until loop.." + TIME:SECONDS.
+	until etaToApoWithMinus() < burnTime/2 + 1 {
 		updateAngleArrows().
-		WAIT 0.1.
+		wait 0.1.
 	}.
-	PRINT "Firing engines TO circularize.".
-	//LOCK THROTTLE TO MAX(0.1, MIN(1.0, 3 * SHIP:ORBIT:ECCENTRICITY)).
-	// 3 seconds before we're done, slow it down TO be more accurate
-	LOCK circularThrottle TO MAX(0.05, MIN(1.0, 0.2 * (circularizeNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
-	LOCK THROTTLE TO circularThrottle.
-	UNTIL (SHIP:APOAPSIS - SHIP:PERIAPSIS) < 1000 OR SHIP:ORBIT:SEMIMAJORAXIS > (BODY:RADIUS + TargetAltitude) OR SHIP:MAXTHRUST = 0 {
+	print "Firing engines to circularize.".
+	//lock THROTTLE to MAX(0.1, MIN(1.0, 3 * SHIP:ORBIT:ECCENTRICITY)).
+	// 3 seconds before we're done, slow it down to be more accurate
+	lock circularThrottle to MAX(0.05, MIN(1.0, 0.2 * (circularizeNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
+	lock THROTTLE to circularThrottle.
+	until (SHIP:APOAPSIS - SHIP:PERIAPSIS) < 1000 or SHIP:ORBIT:SEMIMAJORAXIS > (BODY:RADIUS + TargetAltitude) or SHIP:MAXTHRUST = 0 {
 		updateAngleArrows().
-		WAIT 0.01.
-		IF SHIP:MAXTHRUST = 0 {
-			PRINT "Current stage is out of fuel!".
-			PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL+SHIP:SOLIDFUEL).
-			LOCK THROTTLE TO 0.0.
-			WAIT 0.5.
-			STAGE.
-			IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { BREAK. }
-			WAIT 1.5.
-			LOCK THROTTLE TO circularThrottle.
-			//LOCK THROTTLE TO MAX(0.1, MIN(1.0, 3 * SHIP:ORBIT:ECCENTRICITY)).
-			PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-		}.
+		wait 0.01.
+		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 	}.
-	LOCK THROTTLE TO 0.0.
-	UNLOCK THROTTLE.
-	UNLOCK circularThrottle.
-	UNLOCK STEERING.
+	lock THROTTLE to 0.0.
+	unlock THROTTLE.
+	unlock circularThrottle.
+	unlock STEERING.
 	REMOVE circularizeNode.
 }.
 
-FUNCTION searchBurnToMoon {
-  PARAMETER targetName.
-	LOCAL tBody IS BODY(targetName).
-	SET TARGET TO tBody.
-	PRINT "----------------------------------".
-	PRINT "Gathering information about: " + tBody:NAME.
-	PRINT "----------------------------------".
-	LOCAL pAngle IS calcBodyPhaseAngle(tBody).
-	LOCAL dv IS calcHoemannDVtoOrbit(tBody:ORBIT).
-  PRINT "First stab at transfer.".
-	PRINT "dv TO target orbit is: " + dv.
-	LOCAL timeToBurn IS dv / MAX(1, SHIP:MAXTHRUST / SHIP:MASS).
-	LOCAL timePerDegree IS SHIP:ORBIT:PERIOD / 360.
-	PRINT "Generating rendezvous.".
-	LOCAL tBurn IS TIME:SECONDS + timeToBurn / 2.
-	SET transferNode TO NODE(tBurn - TIME:SECONDS, 0, 0, dv).
+function searchBurnToMoon {
+  parameter targetName.
+	local tBody is BODY(targetName).
+	set TARGET to tBody.
+	print "----------------------------------".
+	print "Gathering information about: " + tBody:NAME.
+	print "----------------------------------".
+	local pAngle is calcBodyPhaseAngle(tBody).
+	local dv is calcHoemannDVtoOrbit(tBody:ORBIT).
+  print "First stab at transfer.".
+	print "dv to target orbit is: " + dv.
+	local timeToBurn is dv / MAX(1, SHIP:MAXTHRUST / SHIP:MASS).
+	local timePerDegree is SHIP:ORBIT:PERIOD / 360.
+	print "Generating rendezvous.".
+	local tBurn is TIME:SECONDS + timeToBurn / 2.
+	set transferNode to NODE(tBurn - TIME:SECONDS, 0, 0, dv).
 	ADD transferNode.
-	LOCAL timeToTransfer IS (timeToBurn + transferNode:ORBIT:PERIOD / 2).
-	PRINT "Estimated trip time: " + timeToTransfer.
+	local timeToTransfer is (timeToBurn + transferNode:ORBIT:PERIOD / 2).
+	print "Estimated trip time: " + timeToTransfer.
 	// BUG: this is causing a "Must attach node first" error and I don't know why
-	//LOCAL pCurrent IS tBody:ORBIT:POSITION - SHIP:BODY:POSITION.
-	//LOCAL pFuture IS POSITIONAT(tBody, TIME:SECONDS + timeToTransfer) - SHIP:BODY:POSITION.
-	//LOCAL estimateAltitude IS (pFuture:MAG / pCurrent:MAG) * tBody:ALTITUDE.
-	//IF tBody:ALTITUDE <> estimateAltitude {
+	//local pCurrent is tBody:ORBIT:POSITION - SHIP:BODY:POSITION.
+	//local pFuture is POSITIONAT(tBody, TIME:SECONDS + timeToTransfer) - SHIP:BODY:POSITION.
+	//local estimateAltitude is (pFuture:MAG / pCurrent:MAG) * tBody:ALTITUDE.
+	//if tBody:ALTITUDE <> estimateAltitude {
 	//	// TODO: target is eccentric, we may not be compensating properly
-	//	PRINT "Ratio between orbit altitudes:".
-	//	PRINT "tBody:ALTITUDE   = " + tBody:ALTITUDE.
-	//	PRINT "estimateAltitude = " + estimateAltitude.
-	//	PRINT "future=" + pFuture:MAG + " -- current=" + pCurrent:MAG.
-	//	PRINT "Ratio = " + (pFuture:MAG / pCurrent:MAG).
-	//	SET dv TO calcHoemannDVtoAlt(estimateAltitude).
-	//	PRINT "New dv adjusted is: " + dv.
+	//	print "Ratio between orbit altitudes:".
+	//	print "tBody:ALTITUDE   = " + tBody:ALTITUDE.
+	//	print "estimateAltitude = " + estimateAltitude.
+	//	print "future=" + pFuture:MAG + " -- current=" + pCurrent:MAG.
+	//	print "Ratio = " + (pFuture:MAG / pCurrent:MAG).
+	//	set dv to calcHoemannDVtoAlt(estimateAltitude).
+	//	print "New dv adjusted is: " + dv.
 	//}.
 	// step forward until we reach an encounter with the target moon
 	// TODO: inclination may prevent this entirely
-	PRINT "Searching for first encounter by angle..".
-	UNTIL transferNode:ORBIT:TRANSITION = "ENCOUNTER" OR tBurn - TIME:SECONDS > SHIP:ORBIT:PERIOD {
-		SET tBurn TO tBurn + timePerDegree.
-		SET transferNode:ETA TO tBurn - TIME:SECONDS.
-		WAIT 0.05.
+	print "Searching for first encounter by angle..".
+	until transferNode:ORBIT:TRANSITION = "ENCOUNTER" or tBurn - TIME:SECONDS > SHIP:ORBIT:PERIOD {
+		set tBurn to tBurn + timePerDegree.
+		set transferNode:ETA to tBurn - TIME:SECONDS.
+		wait 0.05.
 	}.
-	LOCAL fOrbit IS ORBITAT(SHIP, TIME:SECONDS + transferNode:ORBIT:PERIOD).
-	LOCAL lowestETA IS tBurn.
-	LOCAL lowestDV IS dv * 1.02.
-	LOCAL dvOffset IS 0.
-	LOCAL lastTransitionCount IS 1.
-	LOCAL transitionCount IS 0.
+	local fOrbit is ORBITAT(SHIP, TIME:SECONDS + transferNode:ORBIT:PERIOD).
+	local lowestETA is tBurn.
+	local lowestDV is dv * 1.02.
+	local dvOffset is 0.
+	local lastTransitionCount is 1.
+	local transitionCount is 0.
 	
-	// fine tune TO cheapest RETURN TRAJECTORY
-	PRINT "Fine tuning search. Watch on your map view!".
-	UNTIL lastTransitionCount = 0 {
-		IF dvOffset < -0.02 * lowestDV {
-			SET dvOffset TO 0.
-			SET tBurn TO tBurn + timePerDegree.
-			SET transferNode:ETA TO tBurn - TIME:SECONDS.
-			SET lastTransitionCount TO transitionCount.
-			SET transitionCount TO 0.
+	// fine tune to cheapest RETURN TRAJECTORY
+	print "Fine tuning search. Watch on your map view!".
+	until lastTransitionCount = 0 {
+		if dvOffset < -0.02 * lowestDV {
+			set dvOffset to 0.
+			set tBurn to tBurn + timePerDegree.
+			set transferNode:ETA to tBurn - TIME:SECONDS.
+			set lastTransitionCount to transitionCount.
+			set transitionCount to 0.
 		}
-		SET dvOffset TO dvOffset - 0.1.
-		SET transferNode:PROGRADE TO lowestDV + dvOffset.
-		IF transferNode:ORBIT:TRANSITION = "ENCOUNTER" {
-			SET transitionCount TO transitionCount + 1.
-			SET fOrbit TO ORBITAT(SHIP, TIME:SECONDS + transferNode:ORBIT:PERIOD).
-			IF fOrbit:PERIAPSIS > 25000 AND fOrbit:PERIAPSIS < 35000 { 
-				SET dBestSoFar TO transferNode:BURNVECTOR:DIRECTION.
-				LOCK tOrientation TO dBestSoFar.
-				LOCK STEERING TO smoothRotate(tOrientation).
-				SET lowestETA TO tBurn.
-				SET lowestDV TO lowestDV + dvOffset.
-				PRINT "New min found: " + lowestDV.
+		set dvOffset to dvOffset - 0.1.
+		set transferNode:PROGRADE to lowestDV + dvOffset.
+		if transferNode:ORBIT:TRANSITION = "ENCOUNTER" {
+			set transitionCount to transitionCount + 1.
+			set fOrbit to ORBITAT(SHIP, TIME:SECONDS + transferNode:ORBIT:PERIOD).
+			if fOrbit:PERIAPSIS > 25000 and fOrbit:PERIAPSIS < 35000 { 
+				set dBestSoFar to transferNode:BURNVECTOR:DIRECTION.
+				lock tOrientation to dBestSoFar.
+				lock STEERING to smoothRotate(tOrientation).
+				set lowestETA to tBurn.
+				set lowestDV to lowestDV + dvOffset.
+				print "New min found: " + lowestDV.
 			}.
 		}.
-		WAIT 0.001.
+		wait 0.001.
 	}.
-	SET transferNode:ETA TO lowestETA - TIME:SECONDS.
-	SET transferNode:PROGRADE TO lowestDV.
-	PRINT "Lowest dv required TO return found is: " + lowestDV.
-	SET pAngle TO calcFuturePhaseAngle(tBody, tBurn).
-	PRINT "Identified return encounter at phase angle: " + pAngle.
+	set transferNode:ETA to lowestETA - TIME:SECONDS.
+	set transferNode:PROGRADE to lowestDV.
+	print "Lowest dv required to return found is: " + lowestDV.
+	set pAngle to calcFuturePhaseAngle(tBody, tBurn).
+	print "Identified return encounter at phase angle: " + pAngle.
 	
 	// execute the return trajectory node
-	LOCK tOrientation TO transferNode:BURNVECTOR:DIRECTION.
-	LOCK STEERING TO smoothRotate(tOrientation).
-	LOCK DifferenceMag TO VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
-	UNTIL DifferenceMag < 0.5 {
-		WAIT 0.1.
+	lock tOrientation to transferNode:BURNVECTOR:DIRECTION.
+	lock STEERING to smoothRotate(tOrientation).
+	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
+	until DifferenceMag < 0.5 {
+		wait 0.1.
 	}.
-	SET timeToBurn TO lowestDV / MAX(1, SHIP:MAXTHRUST / SHIP:MASS).
-	PRINT "Estimated time TO burn is: " + timeToBurn.
-	IF transferNode:ETA > 50 + (timeToBurn/2) {
-		PRINT "Time warping TO node: " + transferNode:ETA.
-		SET WARPMODE TO "RAILS".
-		LOCAL tWarpSpeed IS 3.
-		SET WARP TO tWarpSpeed.
-		UNTIL transferNode:ETA < 15 + (timeToBurn/2) {
-			IF tWarpSpeed = 3 AND transferNode:ETA < 55 + (timeToBurn/2) {
-				SET tWarpSpeed TO 2.
-				SET WARP TO tWarpSpeed.
+	set timeToBurn to lowestDV / MAX(1, SHIP:MAXTHRUST / SHIP:MASS).
+	print "Estimated time to burn is: " + timeToBurn.
+	if transferNode:ETA > 50 + (timeToBurn/2) {
+		print "Time warping to node: " + transferNode:ETA.
+		set WARPMODE to "RAILS".
+		local tWarpSpeed is 3.
+		set WARP to tWarpSpeed.
+		until transferNode:ETA < 15 + (timeToBurn/2) {
+			if tWarpSpeed = 3 and transferNode:ETA < 55 + (timeToBurn/2) {
+				set tWarpSpeed to 2.
+				set WARP to tWarpSpeed.
 			}.
-			IF tWarpSpeed = 2 AND transferNode:ETA < 25 + (timeToBurn/2) {
-				SET tWarpSpeed TO 1.
-				SET WARP TO tWarpSpeed.
+			if tWarpSpeed = 2 and transferNode:ETA < 25 + (timeToBurn/2) {
+				set tWarpSpeed to 1.
+				set WARP to tWarpSpeed.
 			}.
-			WAIT 0.1.
+			wait 0.1.
 		}
-		SET WARP TO 0.
+		set WARP to 0.
 	}.
-	PRINT "Done warping. ETA: " + transferNode:ETA.
-	UNTIL transferNode:ETA < timeToBurn/2 + 1 {
-		WAIT 0.1.
+	print "Done warping. ETA: " + transferNode:ETA.
+	until transferNode:ETA < timeToBurn/2 + 1 {
+		wait 0.1.
 	}.
-	PRINT "To the " + targetName + "!".
-	LOCAL haveRemovedNode TO false.
-	SET tThrottle TO 1.0.
-	LOCK THROTTLE TO tThrottle.
-	SET fOrbit TO ORBITAT(SHIP, TIME:SECONDS + SHIP:ORBIT:PERIOD).
-	LOCAL tVel IS SHIP:VELOCITY:ORBIT:MAG + transferNode:DELTAV:MAG.
-	UNTIL (haveRemovedNode AND fOrbit:PERIAPSIS > 0 AND fOrbit:PERIAPSIS < SHIP:BODY:ATM:HEIGHT) OR SHIP:MAXTHRUST = 0.0 {
-		WAIT 0.01.
-		IF SHIP:MAXTHRUST = 0 {
-			PRINT "Current stage is out of fuel!".
-			PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL+SHIP:SOLIDFUEL).
-			LOCK THROTTLE TO 0.0.
-			WAIT 0.5.
-			STAGE.
-			IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { BREAK. }
-			WAIT 1.5.
-			LOCK THROTTLE TO tThrottle.
-			PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-		}.
+	print "To the " + targetName + "!".
+	local haveRemovedNode to false.
+	set tThrottle to 1.0.
+	lock THROTTLE to tThrottle.
+	set fOrbit to ORBITAT(SHIP, TIME:SECONDS + SHIP:ORBIT:PERIOD).
+	local tVel is SHIP:VELOCITY:ORBIT:MAG + transferNode:DELTAV:MAG.
+	until (haveRemovedNode and fOrbit:PERIAPSIS > 0 and fOrbit:PERIAPSIS < SHIP:BODY:ATM:HEIGHT) or SHIP:MAXTHRUST = 0.0 {
+		wait 0.01.
+		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 		// failsafe if we missed the node
-		IF haveRemovedNode AND SHIP:VELOCITY:ORBIT:MAG > tVel { 
-			PRINT "We missed the node, immediately aborting!".
+		if haveRemovedNode and SHIP:VELOCITY:ORBIT:MAG > tVel { 
+			print "We missed the node, immediately aborting!".
 			BREAK. 
 		}.
-		IF haveRemovedNode = FALSE AND transferNode:DELTAV:MAG < 2 * (SHIP:MAXTHRUST / SHIP:MASS) {
-			PRINT "Within 2 seconds of thrust. Slowing down...".
-			SET tVel TO SHIP:VELOCITY:ORBIT:MAG + transferNode:DELTAV:MAG.
-			LOCK tThrottle TO MAX(0.05, MIN(1.0, 0.5 * ((tVel - SHIP:VELOCITY:ORBIT:MAG) / (MAX(1, SHIP:MAXTHRUST) / SHIP:MASS)) ) ).
-			SET dBestSoFar TO transferNode:BURNVECTOR:DIRECTION.
-			LOCK tOrientation TO dBestSoFar.
-			LOCK STEERING TO smoothRotate(tOrientation).
+		if haveRemovedNode = false and transferNode:DELTAV:MAG < 2 * (SHIP:MAXTHRUST / SHIP:MASS) {
+			print "Within 2 seconds of thrust. Slowing down...".
+			set tVel to SHIP:VELOCITY:ORBIT:MAG + transferNode:DELTAV:MAG.
+			lock tThrottle to MAX(0.05, MIN(1.0, 0.5 * ((tVel - SHIP:VELOCITY:ORBIT:MAG) / (MAX(1, SHIP:MAXTHRUST) / SHIP:MASS)) ) ).
+			set dBestSoFar to transferNode:BURNVECTOR:DIRECTION.
+			lock tOrientation to dBestSoFar.
+			lock STEERING to smoothRotate(tOrientation).
 			REMOVE transferNode.
-			SET haveRemovedNode TO true.
+			set haveRemovedNode to true.
 		}.
-		SET fOrbit TO ORBITAT(SHIP, TIME:SECONDS + SHIP:ORBIT:PERIOD).
+		set fOrbit to ORBITAT(SHIP, TIME:SECONDS + SHIP:ORBIT:PERIOD).
 	}.
-	LOCK THROTTLE TO 0.0.
-	UNLOCK tThrottle.
-	UNLOCK THROTTLE.
+	lock THROTTLE to 0.0.
+	unlock tThrottle.
+	unlock THROTTLE.
 	
-	UNLOCK STEERING.
-	UNLOCK tOrientation.
+	unlock STEERING.
+	unlock tOrientation.
 }.
 
-FUNCTION executeBurnToMoon {
-  PARAMETER targetName.
-  PARAMETER targetPhaseAngle.
-  PARAMETER additionalDV.
-	LOCAL tBody IS BODY(targetName).
-	SET TARGET TO tBody.
-	PRINT "----------------------------------".
-	PRINT "Gathering information about: " + tBody:NAME.
-	PRINT "----------------------------------".
-	LOCAL pAngle IS calcBodyPhaseAngle(tBody).
-	IF pAngle < targetPhaseAngle - 1 OR pAngle > targetPhaseAngle + 1 {
+function executeBurnToMoon {
+  parameter targetName.
+  parameter targetPhaseAngle.
+  parameter additionalDV.
+	local tBody is BODY(targetName).
+	set TARGET to tBody.
+	print "----------------------------------".
+	print "Gathering information about: " + tBody:NAME.
+	print "----------------------------------".
+	local pAngle is calcBodyPhaseAngle(tBody).
+	if pAngle < targetPhaseAngle - 1 or pAngle > targetPhaseAngle + 1 {
 		// wait -- cannot warp under acceleration, we just cut throttle..
-		WAIT 0.5.
-		PRINT "Warping until phase angle is 111~.".
-		SET WARPMODE TO "RAILS".
-		SET WARP TO 3.
-		LOCAL timePerDegree IS 1.
-		LOCAL lastAngle IS pAngle.
-		LOCAL tLastPrint IS TIME:SECONDS.
-		UNTIL pAngle > targetPhaseAngle - 1 AND pAngle < targetPhaseAngle + 1 {
-			IF tLastPrint + 50 < TIME:SECONDS {
-				PRINT "pAngle is now: " + pAngle + " -- waiting: " + timePerDegree.
-				SET tLastPrint TO TIME:SECONDS.
+		wait 0.5.
+		print "Warping until phase angle is 111~.".
+		set WARPMODE to "RAILS".
+		set WARP to 3.
+		local timePerDegree is 1.
+		local lastAngle is pAngle.
+		local tLastPrint is TIME:SECONDS.
+		until pAngle > targetPhaseAngle - 1 and pAngle < targetPhaseAngle + 1 {
+			if tLastPrint + 50 < TIME:SECONDS {
+				print "pAngle is now: " + pAngle + " -- waiting: " + timePerDegree.
+				set tLastPrint to TIME:SECONDS.
 			}.
-			WAIT timePerDegree / 2.
-			SET lastAngle TO pAngle.
-			SET pAngle TO calcBodyPhaseAngle(tBody).
-			SET timePerDegree TO MIN(50, MAX(0.1, 0.5 * timePerDegree / ABS(pAngle - lastAngle))).
+			wait timePerDegree / 2.
+			set lastAngle to pAngle.
+			set pAngle to calcBodyPhaseAngle(tBody).
+			set timePerDegree to MIN(50, MAX(0.1, 0.5 * timePerDegree / ABS(pAngle - lastAngle))).
 		}.
 	}.
-	SET WARP TO 0.
+	set WARP to 0.
 	
-  PRINT "First stab at transfer.".
-	LOCAL dv IS calcHoemannDVtoOrbit(tBody:ORBIT) + additionalDV.
-	LOCAL timeToBurn IS dv / MAX(1.0, SHIP:MAXTHRUST / SHIP:MASS).
-	SET transferNode TO NODE(TIME:SECONDS + timeToBurn/2, 0, 0, dv).
+  print "First stab at transfer.".
+	local dv is calcHoemannDVtoOrbit(tBody:ORBIT) + additionalDV.
+	local timeToBurn is dv / MAX(1.0, SHIP:MAXTHRUST / SHIP:MASS).
+	set transferNode to NODE(TIME:SECONDS + timeToBurn/2, 0, 0, dv).
 	ADD transferNode.
 
-	LOCAL timeToTransfer IS (timeToBurn + transferNode:ORBIT:PERIOD / 2).
-	PRINT "Estimated trip time: " + timeToTransfer.
-	LOCAL aPhase IS calcFuturePhaseAngle(tBody, TIME:SECONDS + timeToTransfer).
-	PRINT "Estimated future phase angle is: " + aPhase.
+	local timeToTransfer is (timeToBurn + transferNode:ORBIT:PERIOD / 2).
+	print "Estimated trip time: " + timeToTransfer.
+	local aPhase is calcFuturePhaseAngle(tBody, TIME:SECONDS + timeToTransfer).
+	print "Estimated future phase angle is: " + aPhase.
 
-	LOCK STEERING TO smoothRotate(transferNode:BURNVECTOR:DIRECTION).
-	LOCK THROTTLE TO MAX(0.1, MIN(1.0, 0.2 * (transferNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
-	UNTIL transferNode:DELTAV:MAG < 1.0 OR SHIP:MAXTHRUST = 0.0 {
-		WAIT 0.1.
-		IF SHIP:MAXTHRUST = 0 {
-			PRINT "Current stage is out of fuel!".
-			PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL+SHIP:SOLIDFUEL).
-			LOCK THROTTLE TO 0.0.
-			WAIT 0.5.
-			STAGE.
-			IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { BREAK. }
-			WAIT 1.5.
-			LOCK THROTTLE TO MAX(0.1, MIN(1.0, 0.2 * (transferNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
-			PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-		}.
+	lock STEERING to smoothRotate(transferNode:BURNVECTOR:DIRECTION).
+	lock THROTTLE to MAX(0.1, MIN(1.0, 0.2 * (transferNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
+	until transferNode:DELTAV:MAG < 1.0 or SHIP:MAXTHRUST = 0.0 {
+		wait 0.1.
+		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 	}.
-	LOCK THROTTLE TO 0.0.
-	UNLOCK THROTTLE.
+	lock THROTTLE to 0.0.
+	unlock THROTTLE.
 	
-	UNLOCK STEERING.
-	UNLOCK tOrientation.
+	unlock STEERING.
+	unlock tOrientation.
 }.
 
-FUNCTION executeTunePeriAndReturn {
-	PARAMETER tBody.
-	PRINT "Waiting until final transition..".
-	LOCAL targetHeight IS 0.
-	LOCAL allDone IS FALSE.
-	LOCAL lastTransition IS "NONE".
-	LOCAL currentWarp IS 1.
-	LOCAL lastWarp IS currentWarp.
-	LOCAL checkEvery IS 0.1.
+function executeTunePeriAndReturn {
+	parameter tBody.
+	print "Waiting until final transition..".
+	local targetHeight is 0.
+	local allDone is false.
+	local lastTransition is "NONE".
+	local currentWarp is 1.
+	local lastWarp is currentWarp.
+	local checkEvery is 0.1.
 	// we probably just fired our engines for the transition,
 	// give our acceleration a moment before warping
-	WAIT 1.
-	LOCAL speedingUp IS TRUE.
+	wait 1.
+	local speedingUp is TRUE.
 	
-	UNTIL FALSE { // only quit when we BREAK - when entering atmosphere
-		LOCAL projectedChange IS checkEvery * SHIP:VERTICALSPEED * getWarpSpeedModifier(currentWarp).
-		LOCAL projectedAlt IS SHIP:ALTITUDE + projectedChange.
-		IF SHIP:ORBIT:TRANSITION = "ENCOUNTER" {
-			LOCAL estTime IS checkEvery * getWarpSpeedModifier(currentWarp).
-			LOCAL pEstMoon IS (tBody:POSITION + estTime*tBody:VELOCITY:ORBIT).
-			LOCAL pEstShip IS (SHIP:POSITION + estTime*SHIP:VELOCITY:ORBIT).
+	until false { // only quit when we BREAK - when entering atmosphere
+		local projectedChange is checkEvery * SHIP:VERTICALSPEED * getWarpSpeedModifier(currentWarp).
+		local projectedAlt is SHIP:ALTITUDE + projectedChange.
+		if SHIP:ORBIT:TRANSITION = "ENCOUNTER" {
+			local estTime is checkEvery * getWarpSpeedModifier(currentWarp).
+			local pEstMoon is (tBody:POSITION + estTime*tBody:VELOCITY:ORBIT).
+			local pEstShip is (SHIP:POSITION + estTime*SHIP:VELOCITY:ORBIT).
 			// heading UP to the target body/moon
-			IF (pEstMoon - pEstShip):MAG  < tBody:SOIRADIUS {
-				IF currentWarp > 4 {
-					SET currentWarp TO currentWarp - 1.
-					PRINT "Slowing down time to warp: " + currentWarp.
-					SET speedingUp TO FALSE.
+			if (pEstMoon - pEstShip):MAG  < tBody:SOIRADIUS {
+				if currentWarp > 4 {
+					set currentWarp to currentWarp - 1.
+					print "Slowing down time to warp: " + currentWarp.
+					set speedingUp to false.
 				}.
-			} ELSE IF speedingUp AND currentWarp < 6 {
-				SET currentWarp TO currentWarp + 1.
-				PRINT "Speeding up time to warp: " + currentWarp.
+			} ELSE if speedingUp and currentWarp < 6 {
+				set currentWarp to currentWarp + 1.
+				print "Speeding up time to warp: " + currentWarp.
 			}.
-		} ELSE IF SHIP:ORBIT:TRANSITION = "FINAL" AND SHIP:ORBIT:HASNEXTPATCH = FALSE {
+		} ELSE if SHIP:ORBIT:TRANSITION = "FINAL" and SHIP:ORBIT:HASNEXTPATCH = false {
 			// heading to Kerbin
-			IF SHIP:VERTICALSPEED < 0 AND SHIP:MAXTHRUST > 0 {
-				PRINT "We've left " + tBody:NAME + ", adjusting heading home.".
-				SET WARP TO 0.
+			if SHIP:VERTICALSPEED < 0 and SHIP:MAXTHRUST > 0 {
+				print "We've left " + tBody:NAME + ", adjusting heading home.".
+				set WARP to 0.
 				// we are heading home and we have fuel
 				// let's correct our periapsis and dump our engine
-				IF SHIP:PERIAPSIS > 30000 {
-					LOCK tOrientation TO SHIP:RETROGRADE.
+				if SHIP:PERIAPSIS > 30000 {
+					lock tOrientation to SHIP:RETROGRADE.
 				} ELSE {
-					LOCK tOrientation TO SHIP:PROGRADE.
+					lock tOrientation to SHIP:PROGRADE.
 				}.
-				LOCK STEERING TO smoothRotate(tOrientation).
-				LOCK DifferenceMag TO VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
-				PRINT "Pointing to adjust peri..".
-				UNTIL DifferenceMag < 0.5 {
-					WAIT 1.
+				lock STEERING to smoothRotate(tOrientation).
+				lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
+				print "Pointing to adjust peri..".
+				until DifferenceMag < 0.5 {
+					wait 1.
 				}.
-				UNLOCK DifferenceMag.
+				unlock DifferenceMag.
 				// TODO: calculate a Hoehmann speed for the desired periapsis
-				LOCK altDiff TO ABS(SHIP:PERIAPSIS - 30000)/1000000.
-				LOCK THROTTLE TO MAX(0.05, MIN(1.0, altDiff)).
-				PRINT "Firing to adjust peri..".
-				UNTIL altDiff < 0.0175 { // 35km is 0.035 roughly, so half that difference? 27-33km
-					WAIT 0.01.
-					IF SHIP:MAXTHRUST = 0 {
-						PRINT "Current stage is out of fuel!".
-						PRINT "Total fuel remaining: " + (SHIP:LIQUIDFUEL+SHIP:SOLIDFUEL).
-						LOCK THROTTLE TO 0.0.
-						WAIT 0.5.
-						STAGE.
-						IF SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 { 
-							PRINT "We're out of fuel! We didn't make it!".
-							BREAK.
-						}
-						WAIT 1.5.
-						LOCK THROTTLE TO MAX(0.05, MIN(1.0, altDiff)).
-						PRINT "Next stage fuel: " + (STAGE:LIQUIDFUEL + STAGE:SOLIDFUEL).
-					}.
+				lock altDiff to ABS(SHIP:PERIAPSIS - 30000)/1000000.
+				lock THROTTLE to MAX(0.05, MIN(1.0, altDiff)).
+				print "Firing to adjust peri..".
+				until altDiff < 0.0175 { // 35km is 0.035 roughly, so half that difference? 27-33km
+					wait 0.01.
+					if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 				}.
-				LOCK THROTTLE TO 0.0.
-				WAIT 1. // we don't want the lower stages to ram us like they did in the simulation...
-				UNLOCK THROTTLE.
-				UNLOCK STEERING.
-				UNLOCK altDiff.
+				lock THROTTLE to 0.0.
+				wait 1. // we don't want the lower stages to ram us like they did in the simulation...
+				unlock THROTTLE.
+				unlock STEERING.
+				unlock altDiff.
 				
-				PRINT "Done adjusting.".
-				UNTIL SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 {
-					PRINT "Dumping stages. We're going home!".
+				print "Done adjusting.".
+				until SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL = 0 {
+					print "Dumping stages. We're going home!".
 					STAGE.
-					WAIT 2.
+					wait 2.
 				}.
 			}.
 			// this is our quit condition for entering atmosphere
-			IF SHIP:ALTITUDE < SHIP:BODY:ATM:HEIGHT { BREAK. }.
+			if SHIP:ALTITUDE < SHIP:BODY:ATM:HEIGHT { BREAK. }.
 			
-			IF projectedAlt < SHIP:BODY:ATM:HEIGHT AND currentWarp > 4 {
-				SET currentWarp TO currentWarp - 1.
-			} ELSE IF speedingUp AND projectedAlt > SHIP:BODY:ATM:HEIGHT AND currentWarp < 6 {
-				SET currentWarp TO currentWarp + 1.
+			if projectedAlt < SHIP:BODY:ATM:HEIGHT and currentWarp > 4 {
+				set currentWarp to currentWarp - 1.
+			} ELSE if speedingUp and projectedAlt > SHIP:BODY:ATM:HEIGHT and currentWarp < 6 {
+				set currentWarp to currentWarp + 1.
 			}.
-		} ELSE IF SHIP:ORBIT:TRANSITION = "ESCAPE" {
+		} ELSE if SHIP:ORBIT:TRANSITION = "ESCAPE" {
 			// at the moon, leaving
-			IF currentWarp > 0 {
-				PRINT "We're at the " + tBody:NAME + "!".
-				PRINT "Science! Get your science!".
-				SET currentWarp TO 0.
+			if currentWarp > 0 {
+				print "We're at the " + tBody:NAME + "!".
+				print "Science! Get your science!".
+				set currentWarp to 0.
 				// reset allowing speeding up so we can return quickly
-				SET speedingUp TO TRUE.
+				set speedingUp to TRUE.
 			}
 		} ELSE {
-			PRINT "Unknown state!".
-			PRINT "Transition: " + SHIP:ORBIT:TRANSITION.
-			PRINT "VertVelocity: " + SHIP:VERTICALSPEED.
-			PRINT "Projected change: " + projectedChange.
-			PRINT "Projected alt: " + projectedAlt.
-			PRINT "Current warp: " + currentWarp.
+			print "Unknown state!".
+			print "Transition: " + SHIP:ORBIT:TRANSITION.
+			print "VertVelocity: " + SHIP:VERTICALSPEED.
+			print "Projected change: " + projectedChange.
+			print "Projected alt: " + projectedAlt.
+			print "Current warp: " + currentWarp.
 		}.
-		IF lastWarp <> currentWarp {
-			SET lastWarp TO currentWarp.
-			IF currentWarp > 0 { 
-				SET WARPMODE TO "RAILS".
-				SET WARP TO currentWarp.
+		if lastWarp <> currentWarp {
+			set lastWarp to currentWarp.
+			if currentWarp > 0 { 
+				set WARPMODE to "RAILS".
+				set WARP to currentWarp.
 			}.
 		}.
-		WAIT checkEvery.
+		wait checkEvery.
 	}.
 	
-	PRINT "Now entering atmosphere.".
-	PRINT "Altitude is: " + SHIP:ALTITUDE.
-	PRINT "VertVelocity is: " + SHIP:VERTICALSPEED.
-	LOCK tOrientation TO SHIP:RETROGRADE.
-	LOCK STEERING TO smoothRotate(tOrientation).
-	UNTIL ALT:RADAR < 2500 {
-		WAIT 0.1.
+	print "Now entering atmosphere.".
+	print "Altitude is: " + SHIP:ALTITUDE.
+	print "VertVelocity is: " + SHIP:VERTICALSPEED.
+	lock tOrientation to SHIP:RETROGRADE.
+	lock STEERING to smoothRotate(tOrientation).
+	until ALT:RADAR < 2500 {
+		wait 0.1.
 	}.
-	PRINT "Deploying parachutes at altitude: " + SHIP:ALTITUDE.
-	PRINT "Because radar says we're at: " + ALT:RADAR.
+	print "Deploying parachutes at altitude: " + SHIP:ALTITUDE.
+	print "Because radar says we're at: " + ALT:RADAR.
 	// and now we drift to the surface
 	STAGE.
-	UNLOCK STEERING.
+	unlock STEERING.
 }.
 
-//SET transferNode IS NODE(TIME:SECONDS + 600, 0, 0, 800).
+//set transferNode is NODE(TIME:SECONDS + 600, 0, 0, 800).
 //ADD transferNode.
 
-FUNCTION readOutManeuverNode {
-	LOCAL fOrbit IS ORBITAT(SHIP, TIME:SECONDS + transferNode:ORBIT:PERIOD).
-	LOCAL fPeri IS fOrbit:PERIAPSIS.
-	PRINT "Future periapsis will be: " + fPeri.
-	PRINT "DeltaV needed is: " + transferNode:PROGRADE.
-	PRINT "Maneuver phase angle is: " + calcManeuverPhaseAngle(BODY("Mun")).
-	LOCAL tETA IS transferNode:ETA.
-	IF tETA > (transferNode:ORBIT:PERIOD / 2) {
-		SET tETA TO tETA - transferNode:ORBIT:PERIOD.
+function readOutManeuverNode {
+	if SHIP:HASNODE {
+		local tNode is SHIP:NEXTNODE.
+		local fOrbit is ORBITAT(SHIP, TIME:SECONDS + tNode:ORBIT:PERIOD).
+		local fPeri is fOrbit:PERIAPSIS.
+		print "Future periapsis will be: " + fPeri.
+		print "DeltaV needed is: " + tNode:PROGRADE.
+		print "Maneuver phase angle is: " + calcManeuverPhaseAngle(BODY("Mun")).
+		local tETA is tNode:ETA.
+		if tETA > (tNode:ORBIT:PERIOD / 2) {
+			set tETA to tETA - tNode:ORBIT:PERIOD.
+		}.
+		print "ETA is:" + tETA.
 	}.
-	PRINT "ETA is:" + tETA.
 }.
 
-FUNCTION smartRocket {
-	PARAMETER bodyName.
-	LOCAL tBody IS BODY(bodyName).
+function smartRocket {
+	parameter bodyName.
+	local tBody is BODY(bodyName).
 
 	createFacingArrows().
 	createAngleArrows().
 	// do we launch?
-	IF SHIP:ALTITUDE < 200
-	   AND ABS(SHIP:VELOCITY:SURFACE:MAG) < 1 
-		 AND ABS(SHIP:VERTICALSPEED) < 1
+	if SHIP:ALTITUDE < 200
+	   and ABS(SHIP:VELOCITY:SURFACE:MAG) < 1 
+		 and ABS(SHIP:VERTICALSPEED) < 1
 	{
 		executeLaunchMyVessel().
 	}.
-	IF SHIP:ALTITUDE < SHIP:BODY:ATM:HEIGHT
-		 AND SHIP:APOAPSIS < TargetAltitude
-		 AND SHIP:VERTICALSPEED > 98
+	if SHIP:ALTITUDE < SHIP:BODY:ATM:HEIGHT
+		 and SHIP:APOAPSIS < TargetAltitude
+		 and SHIP:VERTICALSPEED > 98
 	{
 		executeGravityTurn().
 		executeCoastToApo().
 	}.
-	IF SHIP:ALTITUDE > SHIP:BODY:ATM:HEIGHT
+	if SHIP:ALTITUDE > SHIP:BODY:ATM:HEIGHT
 	{
 		executeCircularize().
 	}.
 	clearFacingArrows().
 	clearAngleArrows().
-//	IF SHIP:APOAPSIS > SHIP:BODY:ATM:HEIGHT
-//	   AND SHIP:PERIAPSIS > SHIP:BODY:ATM:HEIGHT
+//	if SHIP:APOAPSIS > SHIP:BODY:ATM:HEIGHT
+//	   and SHIP:PERIAPSIS > SHIP:BODY:ATM:HEIGHT
 //	{
 //		searchBurnToMoon(bodyName).
 //		//executeBurnToMoon("Mun", 92, 2).
 //	}.
-//	IF SHIP:APOAPSIS * 1.5 > tBody:ALTITUDE
+//	if SHIP:APOAPSIS * 1.5 > tBody:ALTITUDE
 //	{
 //		executeTunePeriAndReturn(tBody).
 //	}.
@@ -604,24 +563,24 @@ FUNCTION smartRocket {
 
 smartRocket("Mun").
 
-PRINT "Press H TO get updated readout.".
-SET keyPressed TO FALSE.
-WHEN SHIP:CONTROL:PILOTFORE > 0.0 AND keyPressed = FALSE THEN {
-	PRINT "-- You pressed H! Yay!".
-	PRINT " ".
-	PRINT " ".
-	LOCAL tBody IS BODY("Mun").
-	LOCAL pAngle IS calcBodyPhaseAngle(tBody).
+print "Press H to get updated readout.".
+set keyPressed to false.
+when SHIP:CONTROL:PILOTFORE > 0.0 and keyPressed = false then {
+	print "-- You pressed H! Yay!".
+	print " ".
+	print " ".
+	local tBody is BODY("Mun").
+	local pAngle is calcBodyPhaseAngle(tBody).
 	readOutManeuverNode().
-	SET keyPressed TO TRUE.
-	PRESERVE.
+	set keyPressed to TRUE.
+	preserve.
 }.
-WHEN keyPressed AND SHIP:CONTROL:PILOTFORE = 0.0 THEN {
-	SET keyPressed TO FALSE.
-	PRESERVE.
+when keyPressed and SHIP:CONTROL:PILOTFORE = 0.0 then {
+	set keyPressed to false.
+	preserve.
 }.
-WAIT UNTIL SHIP:CONTROL:PILOTSTARBOARD > 0.0.
-//until FALSE {
+wait until SHIP:CONTROL:PILOTSTARBOARD > 0.0.
+//until false {
 //	clearscreen.
 //	foo().
 //	wait 5.

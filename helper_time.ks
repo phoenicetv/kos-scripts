@@ -1,5 +1,5 @@
 // copyright PHOeNICE. Not to be redistributed for any public release.
-// personal use and education only. Not meant for distribution.
+// personal use and education only.
 
 function etaToTimeWithMinus {
 	parameter etaTime.
@@ -9,10 +9,10 @@ function etaToTimeWithMinus {
 	}.
 	return etaTime.
 }.
-FUNCTION etaToApoWithMinus {
+function etaToApoWithMinus {
 	return etaToTimeWithMinus(ETA:APOAPSIS).
 }.
-FUNCTION etaToPeriWithMinus {
+function etaToPeriWithMinus {
 	return etaToTimeWithMinus(ETA:PERIAPSIS).
 }.
 
