@@ -12,6 +12,14 @@ set transferNode to NODE(TIME:SECONDS, 0, 0, 5).
 run once helpers_import.
 
 set tThrottle to 0.0.
+function shouldStageEngines {
+	if SHIP:MAXTHRUST = 0 { return true. }.
+	list ENGINES IN myEngines.
+	FOR e in myEngines {
+		if e:FLAMEOUT { return true. }.
+	}.
+	return false.
+}.
 function inflightStage {
 	print "Current stage is out of fuel!".
 	print "Total fuel remaining: " + (SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL).
@@ -44,7 +52,7 @@ function executeLaunchMyVessel {
 	until SHIP:MAXTHRUST = 0.0 or SHIP:ALTITUDE > MinTurnAltitude {
 		updateAngleArrows().
 		wait 0.05.
-		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+		if shouldStageEngines() and inflightStage() = false { BREAK. }
 	}.
 	unlock STEERING.
 	unlock THROTTLE.
@@ -78,7 +86,7 @@ function executeGravityTurn {
 		set targetArrowOLD:VEC to shipSizeScalar * HEADING(90, limiterY):FOREVECTOR.
 		updateAngleArrows().
 		wait 0.1.
-		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+		if shouldStageEngines() and inflightStage() = false { BREAK. }
 	}.
 	UNSET targetArrowOLD.
 	unlock limiterY.
@@ -177,7 +185,7 @@ function executeCircularize {
 	until (SHIP:APOAPSIS - SHIP:PERIAPSIS) < 1000 or SHIP:ORBIT:SEMIMAJORAXIS > (BODY:RADIUS + TargetAltitude) or SHIP:MAXTHRUST = 0 {
 		updateAngleArrows().
 		wait 0.01.
-		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+		if shouldStageEngines() and inflightStage() = false { BREAK. }
 	}.
 	lock THROTTLE to 0.0.
 	unlock THROTTLE.
@@ -307,7 +315,7 @@ function executeSearchAndBurnToMoon {
 	local tVel is SHIP:VELOCITY:ORBIT:MAG + transferNode:DELTAV:MAG.
 	until (haveRemovedNode and fOrbit:PERIAPSIS > 0 and fOrbit:PERIAPSIS < SHIP:BODY:ATM:HEIGHT) or SHIP:MAXTHRUST = 0.0 {
 		wait 0.01.
-		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+		if shouldStageEngines() and inflightStage() = false { BREAK. }
 		// failsafe if we missed the node
 		if haveRemovedNode and SHIP:VELOCITY:ORBIT:MAG > tVel { 
 			print "We missed the node, immediately aborting!".
@@ -381,7 +389,7 @@ function executeBurnToMoon {
 	lock THROTTLE to tThrottle.
 	until transferNode:DELTAV:MAG < 1.0 or SHIP:MAXTHRUST = 0.0 {
 		wait 0.1.
-		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+		if shouldStageEngines() and inflightStage() = false { BREAK. }
 	}.
 	lock THROTTLE to 0.0.
 	unlock THROTTLE.
@@ -448,7 +456,7 @@ function executeTunePeriAndReturn {
 				print "Firing to adjust peri..".
 				until altDiff < 0.0175 { // 30km is 0.035 roughly, so half that difference? 25-30km
 					wait 0.01.
-					if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
+					if shouldStageEngines() and inflightStage() = false { BREAK. }
 				}.
 				lock THROTTLE to 0.0.
 				wait 1. // we don't want the lower stages to ram us like they did in the simulation...
@@ -582,7 +590,7 @@ function smartRocket {
 	}.
 }.
 
-smartRocket("Mun").
+smartRocket("Minmus").
 
 print "Press H to get updated readout.".
 set keyPressed to false.
