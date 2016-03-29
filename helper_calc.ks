@@ -33,8 +33,8 @@ function calcCircularizeDV {
 	// the formula for circular orbit vel simplifies to:
 	// r1 here instead of 'a' because 'a' is the old semi-major axis
 	local circularV IS (mu / r1)^(0.5).
-	print "apoV is: " + apoV.
-	print "circularV is: " + circularV.
+	print "Vel at apo will be: " + apoV.
+	print "circularVel should be: " + circularV.
 	return circularV - apoV.
 }
 
@@ -45,7 +45,7 @@ function calcHoemannDVtoOrbit {
 	// alt+radius of focal body, smaller half of the semimajor axis when leaving
 	local r1 IS SHIP:ORBIT:BODY:RADIUS + SHIP:ALTITUDE.
 	print "Local r1 is: " + r1.
-	// TODO: this is technically wrong for highly eccentric orbits!!
+	// TODO: this is wrong for highly eccentric orbits!!
 	//       NOT a proper rendezvous!!!
 	// r2 = distance of target body, let's assume the average for now
 	local r2 IS SHIP:ORBIT:BODY:RADIUS + (tOrbit:PERIAPSIS + tOrbit:APOAPSIS) / 2.

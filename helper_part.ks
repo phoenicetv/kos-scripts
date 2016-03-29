@@ -109,13 +109,14 @@ function deployLandingLegs {
 
 function deployDrogueChutes {
 	// DROGUE CHUTES
-	
+	local opened is 0.
 	// title: Mk12-R Radial-Mount Drogue Chute
 	local pcRadialDrogue is SHIP:PARTSNAMED("radialDrogue").
 	for p in pcRadialDrogue {
 		local pm is p:GETMODULE("ModuleParachute").
 		if pm:HASEVENT("deploy chute") {
 			pm:DOEVENT("deploy chute").
+			set opened to opened + 1.
 		}.
 	}.
 	// title: Mk25 Parachute
@@ -124,8 +125,10 @@ function deployDrogueChutes {
 		local pm is p:GETMODULE("ModuleParachute").
 		if pm:HASEVENT("deploy chute") {
 			pm:DOEVENT("deploy chute").
+			set opened to opened + 1.
 		}.
 	}.
+	return opened.
 }.
 
 function deployParachutes {
@@ -420,9 +423,13 @@ function calcFuturePhaseAngle {
 	return aPhase.
 }.
 
-deployScienceExperiments().
-deployLandingLegs().
-deployPanels().
-deployAntenna().
-deployDrogueChutes().
-deployParachutes().
+function testEverything {
+	deployScienceExperiments().
+	deployLandingLegs().
+	deployPanels().
+	deployAntenna().
+	deployDrogueChutes().
+	deployParachutes().
+}.
+
+//testEverything().

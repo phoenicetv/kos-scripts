@@ -51,6 +51,19 @@ function shipMaxWarpAltitude {
 	return -1.
 }.
 
+function getWarpSpeedModifier {
+	parameter speed.
+	if speed = 7 { return 100000. }
+	else if speed = 6 { return 10000. }
+	else if speed = 5 { return 1000. }
+	else if speed = 4 { return 100. }
+	else if speed = 3 { return 50. }
+	else if speed = 2 { return 10. }
+	else if speed = 1 { return 5. }
+	else if speed = 0 { return 1. }
+	else { return 0. }.
+}
+
 function warpToAbsTime {
 	parameter tEnd.
 	local tStart is TIME:SECONDS.
@@ -74,27 +87,22 @@ function warpToAbsTime {
 				set warp to currentWarp.
 			}.
 		} else {
-			if tEnd - TIME:SECONDS > 200000 and currentWarp < 7 and shipMaxWarpAltitude() >= 7 {
-				set currentWarp to 7.
-			} else if tEnd - TIME:SECONDS > 20000 and currentWarp < 6 and shipMaxWarpAltitude() >= 6 {
-				set currentWarp to 6.
-			} else if tEnd - TIME:SECONDS > 2000 and currentWarp < 5 and shipMaxWarpAltitude() >= 5 {
-				set currentWarp to 5.
-			} else if tEnd - TIME:SECONDS > 200 and currentWarp < 4 and shipMaxWarpAltitude() >= 4 {
-				set currentWarp to 4.
-			} else if tEnd - TIME:SECONDS > 100 and currentWarp < 3 and shipMaxWarpAltitude() >= 3 {
-				set currentWarp to 3.
-			} else if tEnd - TIME:SECONDS > 20 and currentWarp < 2 and shipMaxWarpAltitude() >= 2 {
-				set currentWarp to 2.
-			} else if tEnd - TIME:SECONDS > 10 and currentWarp < 1 and shipMaxWarpAltitude() >= 1 {
-				set currentWarp to 1.
+			from { local potentialWarp is 7. }
+			until potentialWarp = 0 
+			step { set potentialWarp to potentialWarp - 1. }
+			do {
+				if tEnd - TIME:SECONDS > 5*getWarpSpeedModifier(potentialWarp) and currentWarp < potentialWarp and shipMaxWarpAltitude() >= potentialWarp {
+					set currentWarp to potentialWarp.
+					print "Warping to speed: " + currentWarp.
+					break.
+				}.
 			}.
 			if oldWarp <> currentWarp {
 				set oldWarp to currentWarp.
 				set warpmode to "RAILS".
 				set warp to currentWarp.
 			}.
-			sleep 0.1.
+			wait 0.01.
 		}.
 	}.
 	set warp to 0.
@@ -102,5 +110,6 @@ function warpToAbsTime {
 }.
 function warpToRelTime {
 	parameter tRel.
+	print "Warping for " + tRel + " seconds.".
 	warpToAbsTime(TIME:SECONDS + tRel).
 }.

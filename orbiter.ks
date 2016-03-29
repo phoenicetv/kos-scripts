@@ -10,17 +10,15 @@ set TargetAltitude  to 100000.
 set transferNode to NODE(TIME:SECONDS, 0, 0, 5).
 
 run once helpers_import.
-//set TERMINAL:HEIGHT to 72.
-//set TERMINAL:WIDTH to 50.
 
+set tThrottle to 0.0.
 function inflightStage {
-	parameter tThrottle.
 	print "Current stage is out of fuel!".
 	print "Total fuel remaining: " + (SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL).
 	lock THROTTLE to 0.0.
 	wait 0.5.
 	STAGE.
-	local nextFuel = SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL.
+	local nextFuel is SHIP:LIQUIDFUEL + SHIP:SOLIDFUEL.
 	if nextFuel = 0 { return false. }.
 	wait 1.5.
 	lock THROTTLE to tThrottle.
@@ -74,7 +72,8 @@ function executeGravityTurn {
 	//lock tOrientation to R(SHIP:SRFPROGRADE:PITCH+2.5, 0, 0).
 	print "Orienting for 5 degree initial turn.".
 
-	lock THROTTLE to 1.0.
+	lock tThrottle to 1.0.
+	lock THROTTLE to tThrottle.
 	until SHIP:ORBIT:APOAPSIS > TargetAltitude or SHIP:MAXTHRUST = 0 {
 		set targetArrowOLD:VEC to shipSizeScalar * HEADING(90, limiterY):FOREVECTOR.
 		updateAngleArrows().
@@ -97,12 +96,14 @@ function executeCoastToApo {
 	lock tOrientation to SHIP:PROGRADE.
 	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
 	lock STEERING to smoothRotate(tOrientation).
+	print "Aligning with prograde as we coast..".
 	until DifferenceMag < 0.5 {
 		updateAngleArrows().
 		wait 0.1.
 	}.
 	set WARPMODE to "PHYSICS".
 	set WARP to 3.
+	print "Physics warping through the atmosphere..".
 	until SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT {
 		updateAngleArrows().
 		wait 0.1.
@@ -110,6 +111,9 @@ function executeCoastToApo {
 	print "Exit atmosphere at ALTITUDE: " + SHIP:ALTITUDE.
 	print "Apoapsis is: " + SHIP:APOAPSIS.
 	set WARP to 0.
+	wait 0.5.
+	deployPanels().
+	deployAntenna().	
 	unlock STEERING.
 	lock THROTTLE to 0.0.
 	unlock THROTTLE.
@@ -147,6 +151,9 @@ function executeCircularize {
 	print "Estimated burn time is: " + burnTime.
 	local circularizeNode to NODE( TIME:SECONDS + etaToApoWithMinus(), 0, 0, circularBurn ).
 	ADD circularizeNode.
+	set WARP to 0.
+	lock tThrottle to 0.0.
+	lock THROTTLE to tThrottle.
 	lock tOrientation to circularizeNode:BURNVECTOR:DIRECTION.
 	lock STEERING to smoothRotate(tOrientation).
 	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
@@ -156,9 +163,7 @@ function executeCircularize {
 	}.
 	unlock DifferenceMag.
 	
-	print "Using WarpTo()" + TIME:SECONDS.
-	// TODO: make a warpto that doesn't overshoot
-	warpToRelTime(etaToApoWithMinus() + burnTime/2 + 5).
+	warpToRelTime(etaToApoWithMinus() - (burnTime/2 + 5)).
 	print "Using wait until loop.." + TIME:SECONDS.
 	until etaToApoWithMinus() < burnTime/2 + 1 {
 		updateAngleArrows().
@@ -167,8 +172,8 @@ function executeCircularize {
 	print "Firing engines to circularize.".
 	//lock THROTTLE to MAX(0.1, MIN(1.0, 3 * SHIP:ORBIT:ECCENTRICITY)).
 	// 3 seconds before we're done, slow it down to be more accurate
-	lock circularThrottle to MAX(0.05, MIN(1.0, 0.2 * (circularizeNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
-	lock THROTTLE to circularThrottle.
+	lock tThrottle to MAX(0.05, MIN(1.0, 0.2 * (circularizeNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
+	lock THROTTLE to tThrottle.
 	until (SHIP:APOAPSIS - SHIP:PERIAPSIS) < 1000 or SHIP:ORBIT:SEMIMAJORAXIS > (BODY:RADIUS + TargetAltitude) or SHIP:MAXTHRUST = 0 {
 		updateAngleArrows().
 		wait 0.01.
@@ -176,12 +181,12 @@ function executeCircularize {
 	}.
 	lock THROTTLE to 0.0.
 	unlock THROTTLE.
-	unlock circularThrottle.
+	unlock tThrottle.
 	unlock STEERING.
 	REMOVE circularizeNode.
 }.
 
-function searchBurnToMoon {
+function executeSearchAndBurnToMoon {
   parameter targetName.
 	local tBody is BODY(targetName).
 	set TARGET to tBody.
@@ -201,6 +206,7 @@ function searchBurnToMoon {
 	local timeToTransfer is (timeToBurn + transferNode:ORBIT:PERIOD / 2).
 	print "Estimated trip time: " + timeToTransfer.
 	// BUG: this is causing a "Must attach node first" error and I don't know why
+	//      probably something to do with locked variables and scope?
 	//local pCurrent is tBody:ORBIT:POSITION - SHIP:BODY:POSITION.
 	//local pFuture is POSITIONAT(tBody, TIME:SECONDS + timeToTransfer) - SHIP:BODY:POSITION.
 	//local estimateAltitude is (pFuture:MAG / pCurrent:MAG) * tBody:ALTITUDE.
@@ -217,6 +223,7 @@ function searchBurnToMoon {
 	// step forward until we reach an encounter with the target moon
 	// TODO: inclination may prevent this entirely
 	print "Searching for first encounter by angle..".
+	set mapview to true.
 	until transferNode:ORBIT:TRANSITION = "ENCOUNTER" or tBurn - TIME:SECONDS > SHIP:ORBIT:PERIOD {
 		set tBurn to tBurn + timePerDegree.
 		set transferNode:ETA to tBurn - TIME:SECONDS.
@@ -370,7 +377,8 @@ function executeBurnToMoon {
 	print "Estimated future phase angle is: " + aPhase.
 
 	lock STEERING to smoothRotate(transferNode:BURNVECTOR:DIRECTION).
-	lock THROTTLE to MAX(0.1, MIN(1.0, 0.2 * (transferNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
+	lock tThrottle to MAX(0.1, MIN(1.0, 0.2 * (transferNode:DELTAV:MAG / (SHIP:MAXTHRUST / SHIP:MASS)) ) ).
+	lock THROTTLE to tThrottle.
 	until transferNode:DELTAV:MAG < 1.0 or SHIP:MAXTHRUST = 0.0 {
 		wait 0.1.
 		if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
@@ -410,11 +418,11 @@ function executeTunePeriAndReturn {
 					print "Slowing down time to warp: " + currentWarp.
 					set speedingUp to false.
 				}.
-			} ELSE if speedingUp and currentWarp < 6 {
+			} else if speedingUp and currentWarp < 5 and shipMaxWarpAltitude() > currentWarp {
 				set currentWarp to currentWarp + 1.
 				print "Speeding up time to warp: " + currentWarp.
 			}.
-		} ELSE if SHIP:ORBIT:TRANSITION = "FINAL" and SHIP:ORBIT:HASNEXTPATCH = false {
+		} else if SHIP:ORBIT:TRANSITION = "FINAL" and SHIP:ORBIT:HASNEXTPATCH = false {
 			// heading to Kerbin
 			if SHIP:VERTICALSPEED < 0 and SHIP:MAXTHRUST > 0 {
 				print "We've left " + tBody:NAME + ", adjusting heading home.".
@@ -423,7 +431,7 @@ function executeTunePeriAndReturn {
 				// let's correct our periapsis and dump our engine
 				if SHIP:PERIAPSIS > 30000 {
 					lock tOrientation to SHIP:RETROGRADE.
-				} ELSE {
+				} else {
 					lock tOrientation to SHIP:PROGRADE.
 				}.
 				lock STEERING to smoothRotate(tOrientation).
@@ -434,10 +442,11 @@ function executeTunePeriAndReturn {
 				}.
 				unlock DifferenceMag.
 				// TODO: calculate a Hoehmann speed for the desired periapsis
-				lock altDiff to ABS(SHIP:PERIAPSIS - 30000)/1000000.
-				lock THROTTLE to MAX(0.05, MIN(1.0, altDiff)).
+				lock altDiff to ABS(SHIP:PERIAPSIS - 27500)/1000000.
+				lock tThrottle to MAX(0.05, MIN(1.0, altDiff)).
+				lock THROTTLE to tThrottle.
 				print "Firing to adjust peri..".
-				until altDiff < 0.0175 { // 35km is 0.035 roughly, so half that difference? 27-33km
+				until altDiff < 0.0175 { // 30km is 0.035 roughly, so half that difference? 25-30km
 					wait 0.01.
 					if SHIP:MAXTHRUST = 0 and inflightStage() = false { BREAK. }
 				}.
@@ -459,19 +468,23 @@ function executeTunePeriAndReturn {
 			
 			if projectedAlt < SHIP:BODY:ATM:HEIGHT and currentWarp > 4 {
 				set currentWarp to currentWarp - 1.
-			} ELSE if speedingUp and projectedAlt > SHIP:BODY:ATM:HEIGHT and currentWarp < 6 {
+			} else if speedingUp and projectedAlt > SHIP:BODY:ATM:HEIGHT and currentWarp < 5 {
 				set currentWarp to currentWarp + 1.
 			}.
-		} ELSE if SHIP:ORBIT:TRANSITION = "ESCAPE" {
+		} else if SHIP:ORBIT:TRANSITION = "ESCAPE" {
 			// at the moon, leaving
 			if currentWarp > 0 {
 				print "We're at the " + tBody:NAME + "!".
 				print "Science! Get your science!".
+				set WARP to 0.
+				deployScienceExperiments().
+				wait 5.
+				set WARP to 5.
 				set currentWarp to 0.
 				// reset allowing speeding up so we can return quickly
 				set speedingUp to TRUE.
 			}
-		} ELSE {
+		} else {
 			print "Unknown state!".
 			print "Transition: " + SHIP:ORBIT:TRANSITION.
 			print "VertVelocity: " + SHIP:VERTICALSPEED.
@@ -492,15 +505,22 @@ function executeTunePeriAndReturn {
 	print "Now entering atmosphere.".
 	print "Altitude is: " + SHIP:ALTITUDE.
 	print "VertVelocity is: " + SHIP:VERTICALSPEED.
-	lock tOrientation to SHIP:RETROGRADE.
+	lock tOrientation to SHIP:SRFRETROGRADE.
 	lock STEERING to smoothRotate(tOrientation).
-	until ALT:RADAR < 2500 {
+	until ALT:RADAR < 3000 {
 		wait 0.1.
 	}.
+	if deployDrogueChutes() > 0 {
+		print "Deploying drogue chutes at altitude: " + SHIP:ALTITUDE.
+		print "Because radar says we're at: " + ALT:RADAR.
+	}.
+	until ALT:RADAR < 1500 {
+		wait 0.1.
+	}.
+	deployParachutes().
 	print "Deploying parachutes at altitude: " + SHIP:ALTITUDE.
 	print "Because radar says we're at: " + ALT:RADAR.
 	// and now we drift to the surface
-	STAGE.
 	unlock STEERING.
 }.
 
@@ -549,16 +569,17 @@ function smartRocket {
 	}.
 	clearFacingArrows().
 	clearAngleArrows().
-//	if SHIP:APOAPSIS > SHIP:BODY:ATM:HEIGHT
-//	   and SHIP:PERIAPSIS > SHIP:BODY:ATM:HEIGHT
-//	{
-//		searchBurnToMoon(bodyName).
-//		//executeBurnToMoon("Mun", 92, 2).
-//	}.
-//	if SHIP:APOAPSIS * 1.5 > tBody:ALTITUDE
-//	{
-//		executeTunePeriAndReturn(tBody).
-//	}.
+	if SHIP:APOAPSIS > SHIP:BODY:ATM:HEIGHT
+	   and SHIP:PERIAPSIS > SHIP:BODY:ATM:HEIGHT
+	{
+		executeSearchAndBurnToMoon(bodyName).
+	}.
+	// if ship's (boosted) apo is greater than the Mun's orbital distance
+	// then assume we're out there, let's come home
+	if SHIP:APOAPSIS * 1.5 > tBody:ALTITUDE
+	{
+		executeTunePeriAndReturn(tBody).
+	}.
 }.
 
 smartRocket("Mun").
