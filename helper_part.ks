@@ -4,6 +4,17 @@
 function deployScienceExperiments {
 	// SCIENCE EXPERIMENTS
 	
+	// title: "Mk1 Command Pod"
+	local scMk1Pods is SHIP:PARTSNAMED("mk1pod").
+	for p in scMk1Pods {
+		local pm is p:GETMODULE("ModuleScienceExperiment").
+		if pm:ALLEVENTNAMES:LENGTH = 1 and pm:HASEVENT("crew report") {
+			pm:DOEVENT("crew report").
+			break.
+		} else {
+			print "Failed mk1pod experiment.".
+		}.
+	}.
 	// title: "SC-9001 Science Jr."
 	local scScienceModules is SHIP:PARTSNAMED("science.module").
 	for p in scScienceModules {
