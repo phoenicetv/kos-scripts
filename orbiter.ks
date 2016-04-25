@@ -4,9 +4,10 @@
 wait until SHIP:UNPACKED.
 set shipSizeScalar to 10.0.
 set MinTurnSpeed to 100.
-set MinTurnAltitude to 1000.
+set MinTurnAltitude to 3000.
 set HardTurnAltitude to 30000.
-set TargetAltitude to 80000.
+set TargetAltitude to 350000.
+set TargetBody to "".
 set transferNode to NODE(TIME:SECONDS, 0, 0, 5).
 
 run once helpers_import.
@@ -78,7 +79,7 @@ function executeGravityTurn {
 	
 	// ***************************************************************************************
 	// written by Reddit user /u/Dunbaratu -- https://www.twitch.tv/dunbaratu
-	lock tOrientation to HEADING(90, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(2/5))).
+	lock tOrientation to HEADING(0, MAX(0, 90 - 90*(SHIP:ALTITUDE/60000)^(3/5))).
 	// note I find this too aggressive for heavy craft, change the 2/5 to 4/5 etc in that case
 	// ***************************************************************************************
 	lock STEERING to smoothRotate(tOrientation).
@@ -111,7 +112,7 @@ function executeCoastToApo {
 	lock DifferenceMag to VECTORANGLE(tOrientation:FOREVECTOR, SHIP:FACING:FOREVECTOR).
 	lock STEERING to smoothRotate(tOrientation).
 	print "Aligning with prograde as we coast..".
-	until DifferenceMag < 0.5 {
+	until DifferenceMag < 0.5 or SHIP:ALTITUDE > SHIP:ORBIT:BODY:ATM:HEIGHT  {
 		updateAngleArrows().
 		wait 0.1.
 	}.
@@ -129,7 +130,7 @@ function executeCoastToApo {
 	set WARP to 0.
 	wait 0.1.
 	deployPanels().
-	deployAntenna().	
+	deployAntenna().	// only do when RT is present
 	unlock STEERING.
 	lock THROTTLE to 0.0.
 	unlock THROTTLE.
@@ -258,7 +259,7 @@ function smartRocket {
 	clearFacingArrows().
 	clearAngleArrows().
 	//deployScienceExperiments().
-	executeDescentSafeguard().
+	//executeDescentSafeguard().
 }.
 
 smartRocket().

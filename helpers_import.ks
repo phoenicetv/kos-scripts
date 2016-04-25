@@ -3,10 +3,10 @@
 
 // I'm blind in both eyes, this helps my screen reader
 // (not really, it looks nicer at my res)
-set TERMINAL:HEIGHT to 60.
-set TERMINAL:WIDTH to 60.
-set TERMINAL:CHARWIDTH to 10.
-set TERMINAL:CHARHEIGHT to 12.
+set TERMINAL:HEIGHT to 20.
+set TERMINAL:WIDTH to 40.
+set TERMINAL:CHARWIDTH to 8.
+set TERMINAL:CHARHEIGHT to 8.
 set TERMINAL:BRIGHTNESS to 0.8.
 
 run once helper_arrow.

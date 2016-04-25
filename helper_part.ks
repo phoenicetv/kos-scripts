@@ -245,6 +245,10 @@ function deployPanels {
 }.
 
 function deployAntenna {
+	if ADDONS:RT:AVAILABLE = false {
+		return 0.
+	}.
+
 	// title: "Communotron 16"
 	local oa2MM is SHIP:PARTSNAMED("longAntenna").
 	for p in oa2MM {

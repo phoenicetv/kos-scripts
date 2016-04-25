@@ -6,7 +6,7 @@ set shipSizeScalar to 30.0.
 set MinTurnSpeed to 100.
 set MinTurnAltitude to   1000.
 set HardTurnAltitude to 30000.
-set TargetAltitude  to 100000.
+set TargetAltitude  to 80000.
 set transferNode to NODE(TIME:SECONDS, 0, 0, 5).
 
 run once helpers_import.
